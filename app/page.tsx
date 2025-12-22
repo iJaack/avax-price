@@ -1,3 +1,4 @@
+// v2 centered UI
 'use client'
 
 import { useEffect, useState } from 'react'
