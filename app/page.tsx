@@ -1,6 +1,4 @@
 'use client'
-// Dark theme centered UI matching solprice.now
-// v1.0 - Dark theme UI
 
 import { useEffect, useState } from 'react'
 import Chart from '@/components/Chart'
@@ -34,36 +32,36 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div className="w-screen h-screen bg-black flex items-center justify-center">
-        <p className="text-gray-400">Loading...</p>
+      <div style={{ width: '100vw', height: '100vh', backgroundColor: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p style={{ color: '#888' }}>Loading...</p>
       </div>
     )
   }
 
   return (
-    <main className="w-screen h-screen bg-black flex flex-col items-center justify-center">
-      <div className="flex flex-col items-center justify-center w-full h-full px-8">
+    <main style={{ width: '100vw', height: '100vh', backgroundColor: '#000', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px', boxSizing: 'border-box' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
         {/* Coin Name */}
-        <div className="text-gray-500 text-sm tracking-widest uppercase mb-8">
+        <div style={{ color: '#666', fontSize: '12px', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '32px' }}>
           AVAX
         </div>
 
         {/* Price Display */}
-        <div className="text-center mb-16">
-          <div className="text-7xl font-light text-white tracking-tight">
+        <div style={{ textAlign: 'center', marginBottom: '64px' }}>
+          <div style={{ fontSize: '80px', fontWeight: '300', color: '#4ade80', letterSpacing: '-0.02em' }}>
             ${price?.toFixed(2)}
           </div>
         </div>
 
         {/* Chart Container */}
-        <div className="w-full flex justify-center mb-16">
-          <div className="w-full max-w-3xl h-72">
+        <div style={{ width: '100%', display: 'flex', justifyContent: 'center', marginBottom: '64px' }}>
+          <div style={{ width: '100%', maxWidth: '900px', height: '300px' }}>
             <Chart data={priceHistory} />
           </div>
         </div>
 
         {/* Show Blocks Button */}
-        <div className="text-gray-500 text-xs tracking-widest uppercase">
+        <div style={{ color: '#666', fontSize: '10px', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
           show blocks
         </div>
       </div>
