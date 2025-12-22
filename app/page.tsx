@@ -41,42 +41,27 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-black text-white flex flex-col items-center justify-center px-4 py-8">
       <div className="w-full max-w-4xl flex flex-col items-center justify-center gap-12">
-        {/* Header - Token Name */}
         <div className="text-center">
-          <h1 className="text-sm tracking-widest text-gray-500 uppercase mb-16">
-            AVAX
-          </h1>
-
-          {/* Price Display */}
+          <h1 className="text-sm tracking-widest text-gray-500 uppercase mb-16">AVAX</h1>
           <div className="text-center mb-8">
-            <div className="text-7xl font-light tracking-tight mb-6">
-              ${price?.toFixed(2)}
-            </div>
-            
-            {/* Change 24h */}
+            <div className="text-8xl font-extralight tracking-tight mb-6">${price?.toFixed(2)}</div>
             {change24h !== null && (
-              <div
-                className={`text-2xl font-light tracking-wide ${
-                  change24h >= 0 ? 'text-green-500' : 'text-red-500'
-                }`}
-              >
+              <div className={`text-2xl font-light tracking-wide ${
+                change24h >= 0 ? 'text-green-500' : 'text-red-500'
+              }`}>
                 {change24h >= 0 ? '+' : ''}{change24h.toFixed(2)}%
               </div>
             )}
           </div>
         </div>
 
-        {/* Chart Section */}
         <div className="w-full flex justify-center">
           <div className="w-full max-w-3xl h-72">
             <Chart data={priceHistory} />
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="text-center text-gray-600 text-sm tracking-wide">
-          show blocks
-        </div>
+        <div className="text-center text-gray-600 text-sm tracking-wide">show blocks</div>
       </div>
     </main>
   )
