@@ -1,3 +1,4 @@
+'use client'
 export default function Chart({ data }: { data: any[] }) {
   return (
     <div className="h-64 w-full">
