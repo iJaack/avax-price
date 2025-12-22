@@ -1,4 +1,5 @@
 'use client'
+
 import { useEffect, useState } from 'react'
 import PriceDisplay from '@/components/PriceDisplay'
 import Chart from '@/components/Chart'
@@ -37,7 +38,17 @@ export default function Home() {
           <div className="text-center text-gray-400">Loading...</div>
         ) : (
           <>
-            <PriceDisplay price={price} change24h={change24h} />
+            <div className="text-center mb-8">
+              <h1 className="text-sm text-gray-500 tracking-widest mb-4">AVAX</h1>
+              <div className="text-6xl font-light tracking-tighter mb-4">
+                ${price?.toFixed(2)}
+              </div>
+              {change24h !== null && (
+                <div className={`text-lg ${ change24h >= 0 ? 'text-green-500' : 'text-red-500' }`}>
+                  {change24h >= 0 ? '+' : ''}{change24h.toFixed(2)}%
+                </div>
+              )}
+            </div>
             <div className="mt-12">
               <Chart data={priceHistory} />
             </div>
