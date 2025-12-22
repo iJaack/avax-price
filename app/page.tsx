@@ -1,5 +1,6 @@
 'use client'
 // Dark theme centered UI matching solprice.now
+// v1.0 - Dark theme UI
 
 import { useEffect, useState } from 'react'
 import Chart from '@/components/Chart'
