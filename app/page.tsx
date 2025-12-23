@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Chart from '@/components/Chart'
 
 export default function Home() {
@@ -9,6 +9,7 @@ export default function Home() {
   const [priceHistory, setPriceHistory] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [priceDirection, setPriceDirection] = useState<'up' | 'down' | 'neutral'>('neutral')
+  const resetTimeoutRef = useRef<NodeJS.Timeout>()
 
   useEffect(() => {
     const fetchPrice = async () => {
@@ -41,11 +42,15 @@ export default function Home() {
     const roundedBase = Math.round(basePrice * 100) / 100
 
     if (roundedDisplay === roundedBase) {
-      // Price hasn't changed, keep it neutral
       return
     }
 
-    // Determine direction
+    // Clear any pending reset
+    if (resetTimeoutRef.current) {
+      clearTimeout(resetTimeoutRef.current)
+    }
+
+    // Determine direction and set color
     if (roundedBase > roundedDisplay) {
       setPriceDirection('up')
     } else if (roundedBase < roundedDisplay) {
@@ -54,17 +59,16 @@ export default function Home() {
 
     let currentPrice = displayPrice
     let animationFrameId: number
-    let timeoutId: NodeJS.Timeout
 
     const animate = () => {
       const diff = roundedBase - currentPrice
 
       if (Math.abs(diff) < 0.001) {
         setDisplayPrice(roundedBase)
-        // Reset color after animation
-        timeoutId = setTimeout(() => {
+        // Schedule color reset after animation completes
+        resetTimeoutRef.current = setTimeout(() => {
           setPriceDirection('neutral')
-        }, 300)
+        }, 500)
         return
       }
 
@@ -77,9 +81,16 @@ export default function Home() {
 
     return () => {
       cancelAnimationFrame(animationFrameId)
-      clearTimeout(timeoutId)
     }
   }, [basePrice])
+
+  useEffect(() => {
+    return () => {
+      if (resetTimeoutRef.current) {
+        clearTimeout(resetTimeoutRef.current)
+      }
+    }
+  }, [])
 
   const getPriceColor = () => {
     switch (priceDirection) {
@@ -109,7 +120,7 @@ export default function Home() {
         }
         .price-display {
           animation: priceGlow 2s ease-in-out infinite;
-          transition: color 0.3s ease;
+          transition: color 0.5s ease;
         }
       `}</style>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
