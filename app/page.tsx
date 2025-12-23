@@ -28,67 +28,67 @@ export default function Home() {
     }
 
     fetchPrice()
-    const interval = setInterval(fetchPrice, 3000) // Fetch every 3 seconds
+    const interval = setInterval(fetchPrice, 3000)
 
     return () => clearInterval(interval)
   }, [])
 
-  // Smooth animation towards basePrice - only when significant change detected
+  // Smooth animation towards basePrice
   useEffect(() => {
     if (displayPrice === null || basePrice === null) return
-
-    let animationFrameId: number
-    let timeoutId: NodeJS.Timeout
 
     const roundedDisplay = Math.round(displayPrice * 100) / 100
     const roundedBase = Math.round(basePrice * 100) / 100
 
-    // Only animate if the rounded values are different (second decimal changed)
-    if (roundedDisplay !== roundedBase) {
-      let currentPrice = displayPrice
-
-      // Determine direction
-      if (roundedBase > roundedDisplay) {
-        setPriceDirection('up')
-      } else if (roundedBase < roundedDisplay) {
-        setPriceDirection('down')
-      }
-
-      const animate = () => {
-        const diff = roundedBase - currentPrice
-
-        if (Math.abs(diff) < 0.001) {
-          // Snap to target when very close
-          setDisplayPrice(roundedBase)
-          // Reset color after animation completes
-          timeoutId = setTimeout(() => {
-            setPriceDirection('neutral')
-          }, 300)
-          return
-        }
-
-        // Smooth interpolation
-        currentPrice += diff * 0.1
-        setDisplayPrice(currentPrice)
-        animationFrameId = requestAnimationFrame(animate)
-      }
-
-      animationFrameId = requestAnimationFrame(animate)
-      return () => {
-        cancelAnimationFrame(animationFrameId)
-        clearTimeout(timeoutId)
-      }
+    if (roundedDisplay === roundedBase) {
+      // Price hasn't changed, keep it neutral
+      return
     }
-  }, [basePrice, displayPrice])
+
+    // Determine direction
+    if (roundedBase > roundedDisplay) {
+      setPriceDirection('up')
+    } else if (roundedBase < roundedDisplay) {
+      setPriceDirection('down')
+    }
+
+    let currentPrice = displayPrice
+    let animationFrameId: number
+    let timeoutId: NodeJS.Timeout
+
+    const animate = () => {
+      const diff = roundedBase - currentPrice
+
+      if (Math.abs(diff) < 0.001) {
+        setDisplayPrice(roundedBase)
+        // Reset color after animation
+        timeoutId = setTimeout(() => {
+          setPriceDirection('neutral')
+        }, 300)
+        return
+      }
+
+      currentPrice += diff * 0.1
+      setDisplayPrice(currentPrice)
+      animationFrameId = requestAnimationFrame(animate)
+    }
+
+    animationFrameId = requestAnimationFrame(animate)
+
+    return () => {
+      cancelAnimationFrame(animationFrameId)
+      clearTimeout(timeoutId)
+    }
+  }, [basePrice])
 
   const getPriceColor = () => {
     switch (priceDirection) {
       case 'up':
-        return '#22c55e' // Green
+        return '#22c55e'
       case 'down':
-        return '#ef4444' // Red
+        return '#ef4444'
       default:
-        return '#ffffff' // White
+        return '#ffffff'
     }
   }
 
