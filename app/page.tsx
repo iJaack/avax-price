@@ -4,17 +4,23 @@ import { useEffect, useState } from 'react'
 import Chart from '@/components/Chart'
 
 export default function Home() {
-  const [price, setPrice] = useState<number | null>(null)
+  const [displayPrice, setDisplayPrice] = useState<number | null>(null)
+  const [actualPrice, setActualPrice] = useState<number | null>(null)
   const [priceHistory, setPriceHistory] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [lastUpdateTime, setLastUpdateTime] = useState(0)
 
   useEffect(() => {
     const fetchPrice = async () => {
       try {
         const response = await fetch('/api/price')
         const data = await response.json()
-        setPrice(data.price)
+        setActualPrice(data.price)
         setPriceHistory(data.history)
+        setLastUpdateTime(Date.now())
+        if (displayPrice === null) {
+          setDisplayPrice(data.price)
+        }
       } catch (error) {
         console.error('Error fetching price:', error)
       } finally {
@@ -23,10 +29,33 @@ export default function Home() {
     }
 
     fetchPrice()
-    const interval = setInterval(fetchPrice, 1000)
+    const interval = setInterval(fetchPrice, 500) // Fetch every 500ms for smooth updates
 
     return () => clearInterval(interval)
   }, [])
+
+  // Smooth animation loop - interpolate to actual price
+  useEffect(() => {
+    if (displayPrice === null || actualPrice === null) return
+
+    let animationFrameId: number
+    const animate = () => {
+      setDisplayPrice(prev => {
+        if (prev === null) return prev
+        const diff = actualPrice - prev
+        const step = diff * 0.15 // Smooth interpolation factor
+        
+        if (Math.abs(diff) < 0.001) {
+          return actualPrice // Snap to actual when very close
+        }
+        return prev + step
+      })
+      animationFrameId = requestAnimationFrame(animate)
+    }
+
+    animationFrameId = requestAnimationFrame(animate)
+    return () => cancelAnimationFrame(animationFrameId)
+  }, [actualPrice])
 
   if (loading) {
     return (
@@ -46,7 +75,7 @@ export default function Home() {
           100% { opacity: 1; }
         }
         .price-update {
-          animation: fadeInOut 0.6s ease-in-out;
+          animation: fadeInOut 0.4s ease-in-out;
         }
       `}</style>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
@@ -57,8 +86,8 @@ export default function Home() {
 
         {/* Price Display */}
         <div style={{ textAlign: 'center', marginBottom: '64px' }}>
-          <div key={Math.round((price || 0) * 100)} className="price-update" style={{ fontSize: '80px', fontWeight: '300', color: '#4ade80', letterSpacing: '-0.02em' }}>
-            ${price?.toFixed(2)}
+          <div className="price-update" style={{ fontSize: '80px', fontWeight: '300', color: '#4ade80', letterSpacing: '-0.02em' }}>
+            ${displayPrice?.toFixed(2)}
           </div>
         </div>
 
