@@ -6,7 +6,6 @@ import Chart from '@/components/Chart'
 export default function Home() {
   const [price, setPrice] = useState<number | null>(null)
   const [priceHistory, setPriceHistory] = useState<any[]>([])
-  const [change24h, setChange24h] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -16,7 +15,6 @@ export default function Home() {
         const data = await response.json()
         setPrice(data.price)
         setPriceHistory(data.history)
-        setChange24h(data.change24h)
       } catch (error) {
         console.error('Error fetching price:', error)
       } finally {
@@ -25,7 +23,7 @@ export default function Home() {
     }
 
     fetchPrice()
-    const interval = setInterval(fetchPrice, 30000)
+    const interval = setInterval(fetchPrice, 1000)
 
     return () => clearInterval(interval)
   }, [])
@@ -58,11 +56,6 @@ export default function Home() {
           <div style={{ width: '100%', maxWidth: '900px', height: '300px' }}>
             <Chart data={priceHistory} />
           </div>
-        </div>
-
-        {/* Show Blocks Button */}
-        <div style={{ color: '#666', fontSize: '10px', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-          show blocks
         </div>
       </div>
     </main>
