@@ -32,25 +32,34 @@ export default function Home() {
     return () => clearInterval(interval)
   }, [])
 
-  // Continuous fluid animation - small random fluctuations every frame
+  // Continuous fluid animation with visible price fluctuations
   useEffect(() => {
     if (displayPrice === null) return
 
     let animationFrameId: number
     let targetPrice = basePrice || displayPrice
+    let fluctuationDirection = 1
+    let fluctuationStepCounter = 0
 
     const animate = () => {
       setDisplayPrice(prev => {
         if (prev === null) return prev
 
-        // If base price changed, smoothly move towards it
-        if (basePrice && Math.abs(basePrice - targetPrice) > 0.001) {
-          targetPrice += (basePrice - targetPrice) * 0.08
+        // If base price changed, smoothly move towards it  
+        if (basePrice && Math.abs(basePrice - targetPrice) > 0.01) {
+          targetPrice += (basePrice - targetPrice) * 0.05
         }
 
-        // Add continuous micro-fluctuations for fluid appearance
-        const microFluctuation = (Math.random() - 0.5) * 0.005 // ±0.0025
-        const newPrice = targetPrice + microFluctuation
+        // Create visible oscillating fluctuations
+        fluctuationStepCounter++
+        if (fluctuationStepCounter > 20) {
+          fluctuationStepCounter = 0
+          fluctuationDirection *= -1
+        }
+
+        // Larger fluctuations for visible changes (±0.01 to ±0.03)
+        const fluctuationAmount = (0.01 + Math.random() * 0.02) * fluctuationDirection
+        const newPrice = targetPrice + fluctuationAmount
 
         return Math.round(newPrice * 100) / 100
       })
@@ -60,7 +69,7 @@ export default function Home() {
 
     animationFrameId = requestAnimationFrame(animate)
     return () => cancelAnimationFrame(animationFrameId)
-  }, [basePrice])
+  }, [basePrice, displayPrice])
 
   if (loading) {
     return (
@@ -74,7 +83,7 @@ export default function Home() {
     <main style={{ width: '100vw', height: '100vh', backgroundColor: '#000', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px', boxSizing: 'border-box' }}>
       <style>{`
         @keyframes priceGlow {
-          0%, 100% { text-shadow: 0 0 10px rgba(74, 222, 128, 0.5); }
+          0%, 100% { text-shadow: 0 0 10px rgba(74, 222, 128, 0.3); }
           50% { text-shadow: 0 0 20px rgba(74, 222, 128, 0.8); }
         }
         .price-display {
@@ -89,7 +98,7 @@ export default function Home() {
 
         {/* Price Display with Glow Animation */}
         <div style={{ textAlign: 'center', marginBottom: '64px' }}>
-          <div className="price-display" style={{ fontSize: '80px', fontWeight: '300', color: '#4ade80', letterSpacing: '-0.02em', transition: 'none' }}>
+          <div className="price-display" style={{ fontSize: '80px', fontWeight: '300', color: '#4ade80', letterSpacing: '-0.02em' }}>
             ${displayPrice?.toFixed(2)}
           </div>
         </div>
