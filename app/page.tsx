@@ -5,19 +5,17 @@ import Chart from '@/components/Chart'
 
 export default function Home() {
   const [displayPrice, setDisplayPrice] = useState<number | null>(null)
-  const [actualPrice, setActualPrice] = useState<number | null>(null)
+  const [basePrice, setBasePrice] = useState<number | null>(null)
   const [priceHistory, setPriceHistory] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [lastUpdateTime, setLastUpdateTime] = useState(0)
 
   useEffect(() => {
     const fetchPrice = async () => {
       try {
         const response = await fetch('/api/price')
         const data = await response.json()
-        setActualPrice(data.price)
+        setBasePrice(data.price)
         setPriceHistory(data.history)
-        setLastUpdateTime(Date.now())
         if (displayPrice === null) {
           setDisplayPrice(data.price)
         }
@@ -29,33 +27,40 @@ export default function Home() {
     }
 
     fetchPrice()
-    const interval = setInterval(fetchPrice, 500) // Fetch every 500ms for smooth updates
+    const interval = setInterval(fetchPrice, 3000) // Fetch every 3 seconds
 
     return () => clearInterval(interval)
   }, [])
 
-  // Smooth animation loop - interpolate to actual price
+  // Continuous fluid animation - small random fluctuations every frame
   useEffect(() => {
-    if (displayPrice === null || actualPrice === null) return
+    if (displayPrice === null) return
 
     let animationFrameId: number
+    let targetPrice = basePrice || displayPrice
+
     const animate = () => {
       setDisplayPrice(prev => {
         if (prev === null) return prev
-        const diff = actualPrice - prev
-        const step = diff * 0.15 // Smooth interpolation factor
-        
-        if (Math.abs(diff) < 0.001) {
-          return actualPrice // Snap to actual when very close
+
+        // If base price changed, smoothly move towards it
+        if (basePrice && Math.abs(basePrice - targetPrice) > 0.001) {
+          targetPrice += (basePrice - targetPrice) * 0.08
         }
-        return prev + step
+
+        // Add continuous micro-fluctuations for fluid appearance
+        const microFluctuation = (Math.random() - 0.5) * 0.005 // ±0.0025
+        const newPrice = targetPrice + microFluctuation
+
+        return Math.round(newPrice * 100) / 100
       })
+
       animationFrameId = requestAnimationFrame(animate)
     }
 
     animationFrameId = requestAnimationFrame(animate)
     return () => cancelAnimationFrame(animationFrameId)
-  }, [actualPrice])
+  }, [basePrice])
 
   if (loading) {
     return (
@@ -68,14 +73,12 @@ export default function Home() {
   return (
     <main style={{ width: '100vw', height: '100vh', backgroundColor: '#000', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px', boxSizing: 'border-box' }}>
       <style>{`
-        @keyframes fadeInOut {
-          0% { opacity: 1; }
-          49% { opacity: 1; }
-          50% { opacity: 0.3; }
-          100% { opacity: 1; }
+        @keyframes priceGlow {
+          0%, 100% { text-shadow: 0 0 10px rgba(74, 222, 128, 0.5); }
+          50% { text-shadow: 0 0 20px rgba(74, 222, 128, 0.8); }
         }
-        .price-update {
-          animation: fadeInOut 0.4s ease-in-out;
+        .price-display {
+          animation: priceGlow 2s ease-in-out infinite;
         }
       `}</style>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
@@ -84,9 +87,9 @@ export default function Home() {
           AVAX
         </div>
 
-        {/* Price Display */}
+        {/* Price Display with Glow Animation */}
         <div style={{ textAlign: 'center', marginBottom: '64px' }}>
-          <div className="price-update" style={{ fontSize: '80px', fontWeight: '300', color: '#4ade80', letterSpacing: '-0.02em' }}>
+          <div className="price-display" style={{ fontSize: '80px', fontWeight: '300', color: '#4ade80', letterSpacing: '-0.02em', transition: 'none' }}>
             ${displayPrice?.toFixed(2)}
           </div>
         </div>
