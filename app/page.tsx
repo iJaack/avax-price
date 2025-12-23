@@ -8,6 +8,7 @@ export default function Home() {
   const [basePrice, setBasePrice] = useState<number | null>(null)
   const [priceHistory, setPriceHistory] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [priceDirection, setPriceDirection] = useState<'up' | 'down' | 'neutral'>('neutral')
 
   useEffect(() => {
     const fetchPrice = async () => {
@@ -37,6 +38,8 @@ export default function Home() {
     if (displayPrice === null || basePrice === null) return
 
     let animationFrameId: number
+    let timeoutId: NodeJS.Timeout
+
     const roundedDisplay = Math.round(displayPrice * 100) / 100
     const roundedBase = Math.round(basePrice * 100) / 100
 
@@ -44,25 +47,50 @@ export default function Home() {
     if (roundedDisplay !== roundedBase) {
       let currentPrice = displayPrice
 
+      // Determine direction
+      if (roundedBase > roundedDisplay) {
+        setPriceDirection('up')
+      } else if (roundedBase < roundedDisplay) {
+        setPriceDirection('down')
+      }
+
       const animate = () => {
         const diff = roundedBase - currentPrice
-        
+
         if (Math.abs(diff) < 0.001) {
           // Snap to target when very close
           setDisplayPrice(roundedBase)
+          // Reset color after animation completes
+          timeoutId = setTimeout(() => {
+            setPriceDirection('neutral')
+          }, 300)
           return
         }
 
-        // Smooth interpolation (0.1 = 10% per frame = smooth but not too slow)
+        // Smooth interpolation
         currentPrice += diff * 0.1
         setDisplayPrice(currentPrice)
         animationFrameId = requestAnimationFrame(animate)
       }
 
       animationFrameId = requestAnimationFrame(animate)
-      return () => cancelAnimationFrame(animationFrameId)
+      return () => {
+        cancelAnimationFrame(animationFrameId)
+        clearTimeout(timeoutId)
+      }
     }
   }, [basePrice, displayPrice])
+
+  const getPriceColor = () => {
+    switch (priceDirection) {
+      case 'up':
+        return '#22c55e' // Green
+      case 'down':
+        return '#ef4444' // Red
+      default:
+        return '#ffffff' // White
+    }
+  }
 
   if (loading) {
     return (
@@ -76,12 +104,12 @@ export default function Home() {
     <main style={{ width: '100vw', height: '100vh', backgroundColor: '#000', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px', boxSizing: 'border-box' }}>
       <style>{`
         @keyframes priceGlow {
-          0%, 100% { text-shadow: 0 0 10px rgba(74, 222, 128, 0.3); }
-          50% { text-shadow: 0 0 20px rgba(74, 222, 128, 0.8); }
+          0%, 100% { text-shadow: 0 0 10px rgba(255, 255, 255, 0.3); }
+          50% { text-shadow: 0 0 20px rgba(255, 255, 255, 0.8); }
         }
         .price-display {
           animation: priceGlow 2s ease-in-out infinite;
-          transition: none;
+          transition: color 0.3s ease;
         }
       `}</style>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
@@ -92,7 +120,7 @@ export default function Home() {
 
         {/* Price Display */}
         <div style={{ textAlign: 'center', marginBottom: '64px' }}>
-          <div className="price-display" style={{ fontSize: '80px', fontWeight: '300', color: '#4ade80', letterSpacing: '-0.02em' }}>
+          <div className="price-display" style={{ fontSize: '80px', fontWeight: '300', color: getPriceColor(), letterSpacing: '-0.02em' }}>
             ${displayPrice?.toFixed(2)}
           </div>
         </div>
