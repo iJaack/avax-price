@@ -32,43 +32,36 @@ export default function Home() {
     return () => clearInterval(interval)
   }, [])
 
-  // Continuous fluid animation with visible price fluctuations
+  // Smooth animation towards basePrice - only when significant change detected
   useEffect(() => {
-    if (displayPrice === null) return
+    if (displayPrice === null || basePrice === null) return
 
     let animationFrameId: number
-    let targetPrice = basePrice || displayPrice
-    let fluctuationDirection = 1
-    let fluctuationStepCounter = 0
+    const roundedDisplay = Math.round(displayPrice * 100) / 100
+    const roundedBase = Math.round(basePrice * 100) / 100
 
-    const animate = () => {
-      setDisplayPrice(prev => {
-        if (prev === null) return prev
+    // Only animate if the rounded values are different (second decimal changed)
+    if (roundedDisplay !== roundedBase) {
+      let currentPrice = displayPrice
 
-        // If base price changed, smoothly move towards it  
-        if (basePrice && Math.abs(basePrice - targetPrice) > 0.01) {
-          targetPrice += (basePrice - targetPrice) * 0.05
+      const animate = () => {
+        const diff = roundedBase - currentPrice
+        
+        if (Math.abs(diff) < 0.001) {
+          // Snap to target when very close
+          setDisplayPrice(roundedBase)
+          return
         }
 
-        // Create visible oscillating fluctuations
-        fluctuationStepCounter++
-        if (fluctuationStepCounter > 20) {
-          fluctuationStepCounter = 0
-          fluctuationDirection *= -1
-        }
-
-        // Larger fluctuations for visible changes (±0.01 to ±0.03)
-        const fluctuationAmount = (0.01 + Math.random() * 0.02) * fluctuationDirection
-        const newPrice = targetPrice + fluctuationAmount
-
-        return Math.round(newPrice * 100) / 100
-      })
+        // Smooth interpolation (0.1 = 10% per frame = smooth but not too slow)
+        currentPrice += diff * 0.1
+        setDisplayPrice(currentPrice)
+        animationFrameId = requestAnimationFrame(animate)
+      }
 
       animationFrameId = requestAnimationFrame(animate)
+      return () => cancelAnimationFrame(animationFrameId)
     }
-
-    animationFrameId = requestAnimationFrame(animate)
-    return () => cancelAnimationFrame(animationFrameId)
   }, [basePrice, displayPrice])
 
   if (loading) {
@@ -88,6 +81,7 @@ export default function Home() {
         }
         .price-display {
           animation: priceGlow 2s ease-in-out infinite;
+          transition: none;
         }
       `}</style>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
@@ -96,7 +90,7 @@ export default function Home() {
           AVAX
         </div>
 
-        {/* Price Display with Glow Animation */}
+        {/* Price Display */}
         <div style={{ textAlign: 'center', marginBottom: '64px' }}>
           <div className="price-display" style={{ fontSize: '80px', fontWeight: '300', color: '#4ade80', letterSpacing: '-0.02em' }}>
             ${displayPrice?.toFixed(2)}
