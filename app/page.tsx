@@ -57,7 +57,7 @@ export default function Home() {
 
         {/* Price Display */}
         <div style={{ textAlign: 'center', marginBottom: '64px' }}>
-          <div key={Math.floor(price || 0)} className="price-update" style={{ fontSize: '80px', fontWeight: '300', color: '#4ade80', letterSpacing: '-0.02em' }}>
+          <div key={Math.round((price || 0) * 100)} className="price-update" style={{ fontSize: '80px', fontWeight: '300', color: '#4ade80', letterSpacing: '-0.02em' }}>
             ${price?.toFixed(2)}
           </div>
         </div>
