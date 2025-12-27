@@ -1,26 +1,68 @@
 'use client'
 
-export default function Chart({ data }: { data: any[] }) {
+import { useMemo } from 'react'
+
+interface ChartProps {
+  data: Array<{ date: string; price: number }>
+}
+
+export default function Chart({ data }: ChartProps) {
+  const chartDimensions = useMemo(() => {
+    if (typeof window === 'undefined') {
+      return { width: 900, height: 300, padding: 40 }
+    }
+
+    const isMobile = window.innerWidth < 768
+    const isTablet = window.innerWidth < 1024
+
+    if (isMobile) {
+      return {
+        width: Math.min(window.innerWidth - 32, 500),
+        height: 200,
+        padding: 20,
+      }
+    }
+
+    if (isTablet) {
+      return {
+        width: Math.min(window.innerWidth - 64, 700),
+        height: 250,
+        padding: 30,
+      }
+    }
+
+    return {
+      width: Math.min(window.innerWidth - 128, 900),
+      height: 300,
+      padding: 40,
+    }
+  }, [])
+
   if (!data || data.length === 0) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: '100%',
+          height: `${chartDimensions.height}px`,
+        }}
+      >
         <p style={{ color: '#666' }}>Loading chart...</p>
       </div>
     )
   }
 
-  const width = 900
-  const height = 300
-  const padding = 40
-
+  const { width, height, padding } = chartDimensions
   const chartWidth = width - padding * 2
   const chartHeight = height - padding * 2
 
-  const minPrice = Math.min(...data.map((d: any) => d.price))
-  const maxPrice = Math.max(...data.map((d: any) => d.price))
+  const minPrice = Math.min(...data.map((d) => d.price))
+  const maxPrice = Math.max(...data.map((d) => d.price))
   const range = maxPrice - minPrice || 1
 
-  const points = data.map((point: any, index: number) => {
+  const points = data.map((point, index) => {
     const x = (index / Math.max(data.length - 1, 1)) * chartWidth + padding
     const y = height - ((point.price - minPrice) / range) * chartHeight - padding
     return { x, y }
@@ -42,19 +84,33 @@ export default function Chart({ data }: { data: any[] }) {
   }
 
   return (
-    <svg
-      style={{ width: '100%', height: '100%', display: 'block' }}
-      viewBox={`0 0 ${width} ${height}`}
-      preserveAspectRatio="none"
+    <div
+      style={{
+        width: '100%',
+        display: 'flex',
+        justifyContent: 'center',
+        overflow: 'auto',
+      }}
     >
-      <path
-        d={pathD}
-        fill="none"
-        stroke="#8899cc"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
+      <svg
+        style={{
+          width: `${width}px`,
+          height: `${height}px`,
+          display: 'block',
+          minWidth: '100%',
+          maxWidth: '100%',
+        }}
+        viewBox={`0 0 ${width} ${height}`}
+        preserveAspectRatio="xMidYMid meet"
+      >
+        <path
+          d={pathD}
+          fill="none"
+          stroke="#8899cc"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </div>
   )
-}
