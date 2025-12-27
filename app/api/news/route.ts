@@ -1,8 +1,63 @@
 export async function GET() {
   try {
-    // For now, return mock news data directly
-    // This ensures we always have news to display on the chart
-    const mockNews = [
+    // Fetch real AVAX news from RSS feeds
+    const rssFeeds = [
+      'https://medium.com/feed/@avalancheavax',
+      'https://cryptoslate.com/news/avalanche/?feed=rss',
+    ]
+
+    const newsItems = []
+
+    for (const feedUrl of rssFeeds) {
+      try {
+        const response = await fetch(feedUrl)
+        const feedText = await response.text()
+
+        // Parse RSS feed using regex to extract items
+        const items = feedText.match(/<item>.*?<\/item>/gs) || []
+
+        for (const item of items.slice(0, 5)) {
+          const titleMatch = item.match(/<title>([^<]+)<\/title>/)
+          const descMatch = item.match(/<description>([^<]+)<\/description>/)
+          const linkMatch = item.match(/<link>([^<]+)<\/link>/)
+          const pubDateMatch = item.match(/<pubDate>([^<]+)<\/pubDate>/)
+
+          if (titleMatch && descMatch && pubDateMatch) {
+            try {
+              const pubDate = new Date(pubDateMatch[1])
+              newsItems.push({
+                title: titleMatch[1].substring(0, 100),
+                description: descMatch[1].substring(0, 200),
+                date: pubDate.toISOString(),
+                timestamp: pubDate.getTime(),
+                url: linkMatch ? linkMatch[1] : '#',
+                source: feedUrl.includes('medium') ? 'Avalanche Medium' : 'CryptoSlate'
+              })
+            } catch (e) {
+              // Skip items with invalid dates
+            }
+          }
+        }
+      } catch (feedError) {
+        console.log(`Error fetching ${feedUrl}:`, feedError)
+      }
+    }
+
+    // Sort by date (newest first) and limit to 10
+    const sortedNews = newsItems
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .slice(0, 10)
+
+    // If we got real news, return it
+    if (sortedNews.length > 0) {
+      return Response.json({
+        news: sortedNews,
+        timestamp: new Date().toISOString()
+      })
+    }
+
+    // Fallback to sample data if RSS feeds fail
+    const fallbackNews = [
       {
         title: 'AVAX Mainnet Live',
         description: 'Avalanche mainnet is operational and processing transactions',
@@ -26,43 +81,17 @@ export async function GET() {
         timestamp: Date.now() - 5 * 24 * 60 * 60 * 1000,
         url: 'https://avalanche.network',
         source: 'CoinGecko'
-      },
-      {
-        title: 'Network Upgrade Completed',
-        description: 'Avalanche completes network upgrade with enhanced security',
-        date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-        timestamp: Date.now() - 2 * 24 * 60 * 60 * 1000,
-        url: 'https://avalanche.network',
-        source: 'Avalanche Team'
-      },
-      {
-        title: 'DeFi Integration Success',
-        description: 'Major DeFi protocol integrates with Avalanche ecosystem',
-        date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-        timestamp: Date.now() - 1 * 24 * 60 * 60 * 1000,
-        url: 'https://avalanche.network',
-        source: 'DeFi News'
       }
     ]
 
     return Response.json({
-      news: mockNews,
+      news: fallbackNews,
       timestamp: new Date().toISOString()
     })
   } catch (error) {
     console.error('Error in news endpoint:', error)
-    // Return fallback mock data even on error
     return Response.json({
-      news: [
-        {
-          title: 'AVAX Mainnet Live',
-          description: 'Avalanche mainnet is operational',
-          date: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
-          timestamp: Date.now() - 15 * 24 * 60 * 60 * 1000,
-          url: '#',
-          source: 'Avalanche'
-        }
-      ],
+      news: [],
       timestamp: new Date().toISOString()
     })
   }
