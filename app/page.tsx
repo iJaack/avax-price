@@ -2,6 +2,15 @@
 import { useEffect, useRef, useState } from 'react'
 import Chart from '@/components/Chart'
 
+interface NewsItem {
+  title: string
+  description: string
+  date: string
+  timestamp: number
+  url: string
+  source: string
+}
+
 export default function Home() {
   const [displayPrice, setDisplayPrice] = useState<number | null>(null)
   const [basePrice, setBasePrice] = useState<number | null>(null)
@@ -9,6 +18,7 @@ export default function Home() {
   const [minPrice24h, setMinPrice24h] = useState<number | null>(null)
   const [maxPrice24h, setMaxPrice24h] = useState<number | null>(null)
   const [priceHistory, setPriceHistory] = useState<any[]>([])
+  const [news, setNews] = useState<NewsItem[]>([])
   const [loading, setLoading] = useState(true)
   const [priceDirection, setPriceDirection] = useState<'up' | 'down' | 'neutral'>('neutral')
   const resetTimeoutRef = useRef<NodeJS.Timeout>()
@@ -35,7 +45,21 @@ export default function Home() {
         setLoading(false)
       }
     }
+
+    // Fetch news data
+    const fetchNews = async () => {
+      try {
+        const response = await fetch('/api/news')
+        const data = await response.json()
+        setNews(data.news || [])
+      } catch (error) {
+        console.error('Error fetching news:', error)
+        setNews([])
+      }
+    }
+
     fetchPrice()
+    fetchNews()
     const interval = setInterval(fetchPrice, 1500) // Faster updates every 1.5 seconds
     return () => clearInterval(interval)
   }, [])
@@ -43,10 +67,10 @@ export default function Home() {
   // Smooth animation towards basePrice with more responsive easing
   useEffect(() => {
     if (displayPrice === null || basePrice === null) return
-    
+
     const roundedDisplay = Math.round(displayPrice * 100) / 100
     const roundedBase = Math.round(basePrice * 100) / 100
-    
+
     if (roundedDisplay === roundedBase) {
       return
     }
@@ -70,12 +94,10 @@ export default function Home() {
     const startAnimation = (timestamp: number) => {
       if (!animationStartTime) animationStartTime = timestamp
       const progress = Math.min((timestamp - animationStartTime) / animationDuration, 1)
-      
+
       // Easing function for smoother animation
-      const easeProgress = progress < 0.5 
-        ? 2 * progress * progress 
-        : 1 - Math.pow(-2 * progress + 2, 2) / 2
-      
+      const easeProgress = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2
+
       const newPrice = displayPrice + (roundedBase - displayPrice) * easeProgress
       setDisplayPrice(newPrice)
 
@@ -178,7 +200,7 @@ export default function Home() {
         {/* Chart Container */}
         <div style={{ width: '100%', display: 'flex', justifyContent: 'center', marginBottom: '64px' }}>
           <div style={{ width: '100%', maxWidth: '900px', height: '300px' }}>
-            <Chart data={priceHistory} />
+            <Chart data={priceHistory} news={news} />
           </div>
         </div>
       </div>
