@@ -12,6 +12,8 @@ export default function Home() {
   const [loading, setLoading] = useState(true)
   const [priceDirection, setPriceDirection] = useState<'up' | 'down' | 'neutral'>('neutral')
   const resetTimeoutRef = useRef<NodeJS.Timeout>()
+  const animationFrameRef = useRef<number>()
+  const currentPriceRef = useRef<number | null>(null)
 
   useEffect(() => {
     const fetchPrice = async () => {
@@ -25,6 +27,7 @@ export default function Home() {
         setPriceHistory(data.history)
         if (displayPrice === null) {
           setDisplayPrice(data.price)
+          currentPriceRef.current = data.price
         }
       } catch (error) {
         console.error('Error fetching price:', error)
@@ -33,47 +36,65 @@ export default function Home() {
       }
     }
     fetchPrice()
-    const interval = setInterval(fetchPrice, 3000)
+    const interval = setInterval(fetchPrice, 1500) // Faster updates every 1.5 seconds
     return () => clearInterval(interval)
   }, [])
 
-  // Smooth animation towards basePrice
+  // Smooth animation towards basePrice with more responsive easing
   useEffect(() => {
     if (displayPrice === null || basePrice === null) return
+    
     const roundedDisplay = Math.round(displayPrice * 100) / 100
     const roundedBase = Math.round(basePrice * 100) / 100
+    
     if (roundedDisplay === roundedBase) {
       return
     }
+
     // Clear any pending reset
     if (resetTimeoutRef.current) {
       clearTimeout(resetTimeoutRef.current)
     }
+
     // Determine direction and set color
     if (roundedBase > roundedDisplay) {
       setPriceDirection('up')
     } else if (roundedBase < roundedDisplay) {
       setPriceDirection('down')
     }
-    let currentPrice = displayPrice
-    let animationFrameId: number
-    const animate = () => {
-      const diff = roundedBase - currentPrice
-      if (Math.abs(diff) < 0.001) {
+
+    currentPriceRef.current = displayPrice
+    let animationStartTime: number
+    const animationDuration = 400 // Smooth animation in 400ms
+
+    const startAnimation = (timestamp: number) => {
+      if (!animationStartTime) animationStartTime = timestamp
+      const progress = Math.min((timestamp - animationStartTime) / animationDuration, 1)
+      
+      // Easing function for smoother animation
+      const easeProgress = progress < 0.5 
+        ? 2 * progress * progress 
+        : 1 - Math.pow(-2 * progress + 2, 2) / 2
+      
+      const newPrice = displayPrice + (roundedBase - displayPrice) * easeProgress
+      setDisplayPrice(newPrice)
+
+      if (progress < 1) {
+        animationFrameRef.current = requestAnimationFrame(startAnimation)
+      } else {
         setDisplayPrice(roundedBase)
         // Schedule color reset after animation completes
         resetTimeoutRef.current = setTimeout(() => {
           setPriceDirection('neutral')
-        }, 500)
-        return
+        }, 300)
       }
-      currentPrice += diff * 0.1
-      setDisplayPrice(currentPrice)
-      animationFrameId = requestAnimationFrame(animate)
     }
-    animationFrameId = requestAnimationFrame(animate)
+
+    animationFrameRef.current = requestAnimationFrame(startAnimation)
     return () => {
-      cancelAnimationFrame(animationFrameId)
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current)
+      }
     }
   }, [basePrice])
 
@@ -81,6 +102,9 @@ export default function Home() {
     return () => {
       if (resetTimeoutRef.current) {
         clearTimeout(resetTimeoutRef.current)
+      }
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current)
       }
     }
   }, [])
@@ -113,7 +137,7 @@ export default function Home() {
         }
         .price-display {
           animation: priceGlow 2s ease-in-out infinite;
-          transition: color 0.5s ease;
+          transition: color 0.3s ease;
         }
       `}</style>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
