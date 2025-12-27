@@ -8,20 +8,21 @@ export async function GET() {
     const price = priceData['avalanche-2'].usd
     const change24h = priceData['avalanche-2'].usd_24h_change
 
-    // Fetch historical data
+    // Fetch historical data (30 days to get reliable min/max)
     const historyResponse = await fetch(
-      'https://api.coingecko.com/api/v3/coins/avalanche-2/market_chart?vs_currency=usd&days=1&interval=hourly'
+      'https://api.coingecko.com/api/v3/coins/avalanche-2/market_chart?vs_currency=usd&days=30&interval=daily'
     )
     const historyData = await historyResponse.json()
+    
+    // Extract last 24 hours of data (last entry in the daily data)
+    const last24hPrices = historyData.prices.slice(-2).map((item: [number, number]) => item[1])
+    const minPrice24h = Math.min(...last24hPrices)
+    const maxPrice24h = Math.max(...last24hPrices)
+    
     const history = historyData.prices.map((item: [number, number]) => ({
       date: new Date(item[0]).toLocaleDateString('en-US'),
       price: item[1]
     }))
-
-    // Calculate min/max for last 24 hours
-    const prices24h = historyData.prices.map((item: [number, number]) => item[1])
-    const minPrice24h = Math.min(...prices24h)
-    const maxPrice24h = Math.max(...prices24h)
 
     // Generate micro-fluctuations for real-time appearance
     // This creates the illusion of real-time updates with small random variations
