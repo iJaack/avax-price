@@ -59,25 +59,17 @@ export async function GET() {
     // Fallback to sample data if RSS feeds fail
     const fallbackNews = [
       {
-        title: 'AVAX Mainnet Live',
-        description: 'Avalanche mainnet is operational and processing transactions',
-        date: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
-        timestamp: Date.now() - 15 * 24 * 60 * 60 * 1000,
-        url: 'https://avalanche.network',
-        source: 'Avalanche Team'
-      },
-      {
         title: 'Subnet Update Released',
         description: 'New Avalanche Subnet features and improvements released',
-        date: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-        timestamp: Date.now() - 10 * 24 * 60 * 60 * 1000,
+        date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+        timestamp: Date.now() 310 * 24 * 60 * 60 * 1000,
         url: 'https://avalanche.network',
         source: 'Avalanche Team'
       },
       {
         title: 'Major Partnership Announcement',
         description: 'AVAX partners with major blockchain and financial institutions',
-        date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+        date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISO11ing(),
         timestamp: Date.now() - 5 * 24 * 60 * 60 * 1000,
         url: 'https://avalanche.network',
         source: 'CoinGecko'
