@@ -114,3 +114,4 @@ export default function Chart({ data }: ChartProps) {
       </svg>
     </div>
   )
+  }
