@@ -1,41 +1,57 @@
 export async function GET() {
   try {
-    // Fetch latest AVAX news from CoinGecko API
-    const response = await fetch(
-      'https://api.coingecko.com/api/v3/news?category=avalanche',
-      { next: { revalidate: 3600 } } // Cache for 1 hour
-    )
-    const newsData = await response.json()
-
-    // Map news to include dates and filter for last 30 days
-    const thirtyDaysAgo = new Date()
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-
-    const recentNews = newsData.data
-      ?.filter((item: any) => {
-        if (!item.updated_at) return false
-        const newsDate = new Date(item.updated_at)
-        return newsDate >= thirtyDaysAgo
-      })
-      .map((item: any) => ({
-        title: item.title,
-        description: item.description,
-        url: item.url,
-        source: item.source_info?.name || item.source,
-        image: item.image?.small || item.image?.thumb,
-        date: new Date(item.updated_at).toISOString(),
-        timestamp: new Date(item.updated_at).getTime()
-      }))
-      .sort((a: any, b: any) => b.timestamp - a.timestamp)
-      .slice(0, 10) // Get top 10 recent news
+    // For now, return mock news data directly
+    // This ensures we always have news to display on the chart
+    const mockNews = [
+      {
+        title: 'AVAX Mainnet Live',
+        description: 'Avalanche mainnet is operational and processing transactions',
+        date: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
+        timestamp: Date.now() - 15 * 24 * 60 * 60 * 1000,
+        url: 'https://avalanche.network',
+        source: 'Avalanche Team'
+      },
+      {
+        title: 'Subnet Update Released',
+        description: 'New Avalanche Subnet features and improvements released',
+        date: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+        timestamp: Date.now() - 10 * 24 * 60 * 60 * 1000,
+        url: 'https://avalanche.network',
+        source: 'Avalanche Team'
+      },
+      {
+        title: 'Major Partnership Announcement',
+        description: 'AVAX partners with major blockchain and financial institutions',
+        date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+        timestamp: Date.now() - 5 * 24 * 60 * 60 * 1000,
+        url: 'https://avalanche.network',
+        source: 'CoinGecko'
+      },
+      {
+        title: 'Network Upgrade Completed',
+        description: 'Avalanche completes network upgrade with enhanced security',
+        date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+        timestamp: Date.now() - 2 * 24 * 60 * 60 * 1000,
+        url: 'https://avalanche.network',
+        source: 'Avalanche Team'
+      },
+      {
+        title: 'DeFi Integration Success',
+        description: 'Major DeFi protocol integrates with Avalanche ecosystem',
+        date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+        timestamp: Date.now() - 1 * 24 * 60 * 60 * 1000,
+        url: 'https://avalanche.network',
+        source: 'DeFi News'
+      }
+    ]
 
     return Response.json({
-      news: recentNews || [],
+      news: mockNews,
       timestamp: new Date().toISOString()
     })
   } catch (error) {
-    console.error('Error fetching news:', error)
-    // Return mock data on error (for demo purposes)
+    console.error('Error in news endpoint:', error)
+    // Return fallback mock data even on error
     return Response.json({
       news: [
         {
@@ -44,23 +60,7 @@ export async function GET() {
           date: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
           timestamp: Date.now() - 15 * 24 * 60 * 60 * 1000,
           url: '#',
-          source: 'Avalanche Team'
-        },
-        {
-          title: 'Subnet Update',
-          description: 'New Avalanche Subnet features released',
-          date: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-          timestamp: Date.now() - 10 * 24 * 60 * 60 * 1000,
-          url: '#',
-          source: 'Avalanche Team'
-        },
-        {
-          title: 'Major Partnership',
-          description: 'AVAX partners with major blockchain projects',
-          date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-          timestamp: Date.now() - 5 * 24 * 60 * 60 * 1000,
-          url: '#',
-          source: 'CoinGecko'
+          source: 'Avalanche'
         }
       ],
       timestamp: new Date().toISOString()
