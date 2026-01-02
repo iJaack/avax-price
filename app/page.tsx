@@ -2,13 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Chart from '@/components/Chart'
-import { COLORS, LAYOUT, TYPOGRAPHY, ANIMATION, API_ENDPOINTS, APP_CONFIG } from '@/lib/constants'
 import type { NewsItem, PriceDirection } from '@/lib/types'
 
 // Price API Service
 const priceService = {
   fetch: async () => {
-    const response = await fetch(API_ENDPOINTS.PRICE)
+    const response = await fetch('/api/price')
     if (!response.ok) throw new Error('Failed to fetch price')
     return response.json()
   },
@@ -17,11 +16,101 @@ const priceService = {
 // News API Service
 const newsService = {
   fetch: async () => {
-    const response = await fetch(API_ENDPOINTS.NEWS)
+    const response = await fetch('/api/news')
     if (!response.ok) throw new Error('Failed to fetch news')
     const data = await response.json()
     return data.news || []
   },
+}
+
+// PriceDisplay Component with Tailwind
+function PriceDisplay({
+  price,
+  direction,
+  coinName = 'AVAX',
+}: {
+  price: number | null
+  direction: PriceDirection
+  coinName?: string
+}) {
+  const getPriceColor = () => {
+    switch (direction) {
+      case 'up':
+        return 'text-green-400'
+      case 'down':
+        return 'text-red-400'
+      default:
+        return 'text-white'
+    }
+  }
+
+  return (
+    <>
+      <style>{`
+        @keyframes priceGlow {
+          0%, 100% { text-shadow: 0 0 10px rgba(255, 255, 255, 0.3); }
+          50% { text-shadow: 0 0 20px rgba(255, 255, 255, 0.8); }
+        }
+        .price-display {
+          animation: priceGlow 2s ease-in-out infinite;
+          transition: color 0.3s ease;
+        }
+      `}</style>
+      <div className="text-gray-600 text-xs uppercase tracking-widest mb-16">
+        {coinName}
+      </div>
+      <div className="text-center mb-16">
+        <div className={`price-display text-8xl font-light ${getPriceColor()} tracking-tight`}>
+          ${(price || 0).toFixed(2)}
+        </div>
+      </div>
+    </>
+  )
+}
+
+// PriceStats Component with Tailwind
+function PriceStats({
+  change24h,
+  minPrice24h,
+  maxPrice24h,
+  decimalPlaces = 2,
+}: {
+  change24h: number | null
+  minPrice24h: number | null
+  maxPrice24h: number | null
+  decimalPlaces?: number
+}) {
+  const getChangeColor = () => {
+    if (!change24h) return 'text-gray-400'
+    return change24h > 0 ? 'text-green-400' : 'text-red-400'
+  }
+
+  const formatPrice = (price: number | null) => {
+    if (price === null) return '-'
+    return `$${price.toFixed(decimalPlaces)}`
+  }
+
+  return (
+    <div className="flex gap-10 mb-16 justify-center w-full flex-wrap">
+      {/* 24H Change */}
+      <div className="text-center">
+        <div className="text-xs text-gray-500 uppercase tracking-wider mb-2">24H Change</div>
+        <div className={`text-sm font-medium ${getChangeColor()}`}>
+          {change24h !== null ? `${change24h > 0 ? '+' : ''}${change24h.toFixed(2)}%` : '-'}
+        </div>
+      </div>
+      {/* 24H Low */}
+      <div className="text-center">
+        <div className="text-xs text-gray-500 uppercase tracking-wider mb-2">24H Low</div>
+        <div className="text-sm font-medium text-gray-400">{formatPrice(minPrice24h)}</div>
+      </div>
+      {/* 24H High */}
+      <div className="text-center">
+        <div className="text-xs text-gray-500 uppercase tracking-wider mb-2">24H High</div>
+        <div className="text-sm font-medium text-gray-400">{formatPrice(maxPrice24h)}</div>
+      </div>
+    </div>
+  )
 }
 
 // Custom Hook: usePriceAnimation
@@ -39,21 +128,17 @@ function usePriceAnimation(basePrice: number | null, displayPrice: number | null
 
     if (roundedDisplay === roundedBase) return
 
-    // Cleanup previous animation
     if (resetTimeoutRef.current) clearTimeout(resetTimeoutRef.current)
     if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current)
 
-    // Set direction
     setPriceDirection(roundedBase > roundedDisplay ? 'up' : 'down')
 
     let animationStartTime: number
-    const animationDuration = ANIMATION.DURATION_MS
+    const animationDuration = 400
 
     const animate = (timestamp: number) => {
       if (!animationStartTime) animationStartTime = timestamp
       const progress = Math.min((timestamp - animationStartTime) / animationDuration, 1)
-      
-      // Easing function: ease-in-out
       const easeProgress = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2
       const newPrice = displayPrice + (roundedBase - displayPrice) * easeProgress
 
@@ -63,7 +148,7 @@ function usePriceAnimation(basePrice: number | null, displayPrice: number | null
         animationFrameRef.current = requestAnimationFrame(animate)
       } else {
         setAnimatedPrice(roundedBase)
-        resetTimeoutRef.current = setTimeout(() => setPriceDirection('neutral'), ANIMATION.COLOR_RESET_DELAY)
+        resetTimeoutRef.current = setTimeout(() => setPriceDirection('neutral'), 300)
       }
     }
 
@@ -113,7 +198,7 @@ function usePriceData() {
     }
 
     fetchPrice()
-    const interval = setInterval(fetchPrice, ANIMATION.PRICE_UPDATE_INTERVAL)
+    const interval = setInterval(fetchPrice, 1500)
     return () => clearInterval(interval)
   }, [])
 
@@ -144,18 +229,6 @@ function useNewsData() {
   return { news, error }
 }
 
-// PriceColor Utility
-function getPriceColor(direction: PriceDirection): string {
-  switch (direction) {
-    case 'up':
-      return COLORS.success
-    case 'down':
-      return COLORS.danger
-    default:
-      return COLORS.primary
-  }
-}
-
 // Main Component
 export default function Home() {
   const priceData = usePriceData()
@@ -163,7 +236,6 @@ export default function Home() {
   const [displayPrice, setDisplayPrice] = useState<number | null>(null)
   const { animatedPrice, priceDirection } = usePriceAnimation(priceData.basePrice, displayPrice || priceData.basePrice)
 
-  // Initialize display price
   useEffect(() => {
     if (displayPrice === null && priceData.basePrice !== null) {
       setDisplayPrice(priceData.basePrice)
@@ -172,63 +244,29 @@ export default function Home() {
 
   if (priceData.loading) {
     return (
-      <div style={{ width: LAYOUT.FULL_VIEWPORT, height: LAYOUT.FULL_HEIGHT, backgroundColor: COLORS.dark, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <p style={{ color: COLORS.muted }}>Loading...</p>
+      <div className="w-screen h-screen bg-black flex items-center justify-center">
+        <p className="text-gray-600">Loading...</p>
       </div>
     )
   }
 
   return (
-    <main style={{ width: LAYOUT.FULL_VIEWPORT, height: LAYOUT.FULL_HEIGHT, backgroundColor: COLORS.dark, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: `${LAYOUT.PADDING}px`, boxSizing: 'border-box' }}>
-      <style>{`
-        @keyframes priceGlow {
-          0%, 100% { text-shadow: 0 0 10px rgba(255, 255, 255, 0.3); }
-          50% { text-shadow: 0 0 20px rgba(255, 255, 255, 0.8); }
-        }
-        .price-display {
-          animation: priceGlow 2s ease-in-out infinite;
-          transition: color 0.3s ease;
-        }
-      `}</style>
-
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
-        {/* Coin Name */}
-        <div style={{ color: COLORS.subtle, fontSize: TYPOGRAPHY.COIN_NAME_SIZE, letterSpacing: TYPOGRAPHY.LETTER_SPACING_WIDE, textTransform: 'uppercase', marginBottom: `${LAYOUT.GAP_MEDIUM}px` }}>
-          {APP_CONFIG.COIN_NAME}
-        </div>
-
+    <main className="w-screen h-screen bg-black flex flex-col items-center justify-center px-8">
+      <div className="flex flex-col items-center justify-center w-full h-full">
         {/* Price Display */}
-        <div style={{ textAlign: 'center', marginBottom: `${LAYOUT.GAP_MEDIUM}px` }}>
-          <div className="price-display" style={{ fontSize: TYPOGRAPHY.PRICE_DISPLAY_SIZE, fontWeight: '300', color: getPriceColor(priceDirection), letterSpacing: TYPOGRAPHY.LETTER_SPACING_TIGHT }}>
-            ${(animatedPrice || 0).toFixed(APP_CONFIG.DECIMAL_PLACES)}
-          </div>
-        </div>
+        <PriceDisplay price={animatedPrice} direction={priceDirection} coinName="AVAX" />
 
-        {/* 24h Stats */}
-        <div style={{ display: 'flex', gap: `${LAYOUT.GAP_LARGE}px`, marginBottom: `${LAYOUT.GAP_MEDIUM}px`, justifyContent: 'center', width: '100%', flexWrap: 'wrap' }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ color: COLORS.subtle, fontSize: TYPOGRAPHY.STAT_LABEL_SIZE, letterSpacing: TYPOGRAPHY.LETTER_SPACING_NORMAL, marginBottom: '8px' }}>24H CHANGE</div>
-            <div style={{ color: priceData.change24h && priceData.change24h > 0 ? COLORS.success : priceData.change24h && priceData.change24h < 0 ? COLORS.danger : COLORS.muted, fontSize: TYPOGRAPHY.STAT_VALUE_SIZE, fontWeight: '500' }}>
-              {priceData.change24h !== null ? `${priceData.change24h > 0 ? '+' : ''}${priceData.change24h.toFixed(2)}%` : '-'}
-            </div>
-          </div>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ color: COLORS.subtle, fontSize: TYPOGRAPHY.STAT_LABEL_SIZE, letterSpacing: TYPOGRAPHY.LETTER_SPACING_NORMAL, marginBottom: '8px' }}>24H LOW</div>
-            <div style={{ color: COLORS.muted, fontSize: TYPOGRAPHY.STAT_VALUE_SIZE, fontWeight: '500' }}>
-              ${priceData.minPrice24h?.toFixed(APP_CONFIG.DECIMAL_PLACES)}
-            </div>
-          </div>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ color: COLORS.subtle, fontSize: TYPOGRAPHY.STAT_LABEL_SIZE, letterSpacing: TYPOGRAPHY.LETTER_SPACING_NORMAL, marginBottom: '8px' }}>24H HIGH</div>
-            <div style={{ color: COLORS.muted, fontSize: TYPOGRAPHY.STAT_VALUE_SIZE, fontWeight: '500' }}>
-              ${priceData.maxPrice24h?.toFixed(APP_CONFIG.DECIMAL_PLACES)}
-            </div>
-          </div>
-        </div>
+        {/* Price Stats */}
+        <PriceStats
+          change24h={priceData.change24h}
+          minPrice24h={priceData.minPrice24h}
+          maxPrice24h={priceData.maxPrice24h}
+          decimalPlaces={2}
+        />
 
         {/* Chart Container */}
-        <div style={{ width: '100%', display: 'flex', justifyContent: 'center', marginBottom: `${LAYOUT.GAP_MEDIUM}px` }}>
-          <div style={{ width: '100%', maxWidth: `${LAYOUT.MAX_CHART_WIDTH}px`, height: `${LAYOUT.CHART_HEIGHT}px` }}>
+        <div className="w-full flex justify-center mb-16">
+          <div className="w-full max-w-[900px] h-[300px]">
             <Chart data={priceData.priceHistory} news={newsData.news} />
           </div>
         </div>
