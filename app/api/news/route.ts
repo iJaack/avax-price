@@ -62,7 +62,7 @@ export async function GET() {
         title: 'Subnet Update Released',
         description: 'New Avalanche Subnet features and improvements released',
         date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-        timestamp: Date.now() 310 * 24 * 60 * 60 * 1000,
+        timestamp: Date.now() - 5 * 24 * 60 * 60 * 1000,
         url: 'https://avalanche.network',
         source: 'Avalanche Team'
       },
