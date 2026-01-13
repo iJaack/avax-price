@@ -237,7 +237,7 @@ export default function Home() {
   const { animatedPrice, priceDirection } = usePriceAnimation(priceData.basePrice, displayPrice || priceData.basePrice)
 
   useEffect(() => {
-    if (displayPrice === null && priceData.basePrice !== null) {
+    if (priceData.basePrice !== null) {
       setDisplayPrice(priceData.basePrice)
     }
   }, [priceData.basePrice])
