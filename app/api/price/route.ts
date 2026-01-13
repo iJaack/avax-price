@@ -11,20 +11,29 @@ export async function GET() {
     const price = priceData['avalanche-2'].usd
     const change24h = priceData['avalanche-2'].usd_24h_change
 
-    // Fetch historical data (30 days to get reliable min/max)
+    // Fetch 24-hour data for min/max calculation
+    const day24Response = await fetch(
+      'https://api.coingecko.com/api/v3/coins/avalanche-2/market_chart?vs_currency=usd&days=1&interval=hourly',
+      { cache: 'no-store' }
+    )
+
+    // Fetch 30-day data for chart history
     const historyResponse = await fetch(
       'https://api.coingecko.com/api/v3/coins/avalanche-2/market_chart?vs_currency=usd&days=30&interval=daily',
       { cache: 'no-store' }
     )
-    
-    if (!historyResponse.ok) throw new Error('History fetch failed')
+
+    if (!day24Response.ok || !historyResponse.ok) throw new Error('History fetch failed')
+
+    const day24Data = await day24Response.json()
     const historyData = await historyResponse.json()
 
-    // Extract last 24 hours of data
-    const last24hPrices = historyData.prices.slice(-2).map((item: [number, number]) => item[1])
-    const minPrice24h = Math.min(...last24hPrices)
-    const maxPrice24h = Math.max(...last24hPrices)
+    // Calculate 24h min/max from hourly data
+    const last24hPrices = day24Data.prices.map((item: [number, number]) => item[1])
+    const minPrice24h = Math.min(...last24hPrices, price)
+    const maxPrice24h = Math.max(...last24hPrices, price)
 
+    // Use 30-day daily data for chart
     const history = historyData.prices.map((item: [number, number]) => ({
       date: new Date(item[0]).toLocaleDateString('en-US'),
       price: item[1]
