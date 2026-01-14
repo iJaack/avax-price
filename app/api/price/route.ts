@@ -5,7 +5,7 @@ export async function GET() {
       'https://api.coingecko.com/api/v3/simple/price?ids=avalanche-2&vs_currencies=usd&include_24hr_change=true&include_market_cap=true&include_market_cap_change_24h=true',
       { cache: 'no-store' }
     )
-    
+
     if (!response.ok) throw new Error('CoinGecko API failed')
     const priceData = await response.json()
     const price = priceData['avalanche-2'].usd
@@ -33,9 +33,10 @@ export async function GET() {
     const minPrice24h = Math.min(...last24hPrices, price)
     const maxPrice24h = Math.max(...last24hPrices, price)
 
-    // Use 30-day daily data for chart
+    // Use 30-day daily data for chart - include timestamp for accurate news positioning
     const history = historyData.prices.map((item: [number, number]) => ({
       date: new Date(item[0]).toLocaleDateString('en-US'),
+      timestamp: item[0],
       price: item[1]
     }))
 

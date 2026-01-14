@@ -11,7 +11,7 @@ interface NewsItem {
 }
 
 interface ChartProps {
-  data: Array<{ date: string; price: number }>
+  data: Array<{ date: string; timestamp?: number; price: number }>
   news?: NewsItem[]
 }
 
@@ -89,31 +89,51 @@ export default function Chart({ data, news = [] }: ChartProps) {
     pathD += ` C ${cpix} ${cpiy}, ${cp2x} ${cp2y}, ${curr.x} ${curr.y}`
   }
 
-  // Map news items to chart coordinates
+  // Get timestamp range from data - use actual timestamps if available
+  const getTimestamp = (item: { date: string; timestamp?: number }, index: number) => {
+    if (item.timestamp) return item.timestamp
+    // Fallback: parse date string
+    const parsed = new Date(item.date).getTime()
+    if (!isNaN(parsed)) return parsed
+    // Last fallback: calculate based on index (30 days ago)
+    const now = Date.now()
+    const daysAgo = data.length - 1 - index
+    return now - daysAgo * 24 * 60 * 60 * 1000
+  }
+
+  const firstTimestamp = getTimestamp(data[0], 0)
+  const lastTimestamp = getTimestamp(data[data.length - 1], data.length - 1)
+  const timeRange = lastTimestamp - firstTimestamp || 1
+
+  // Map news items to chart coordinates using precise timestamps
   const newsMarkers = news
     .map((newsItem) => {
-      const newsDate = new Date(newsItem.date)
-      const firstDate = new Date(data[0].date)
-      const lastDate = new Date(data[data.length - 1].date)
-      const totalDays =
-        (lastDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24) || 1
-      const daysSinceStart =
-        (newsDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)
+      const newsTimestamp = newsItem.timestamp
 
-      if (daysSinceStart < 0 || daysSinceStart > totalDays) {
+      // Only show news within the chart time range
+      if (newsTimestamp < firstTimestamp || newsTimestamp > lastTimestamp) {
         return null
       }
 
-      const progress = daysSinceStart / totalDays
+      // Calculate x position based on timestamp
+      const progress = (newsTimestamp - firstTimestamp) / timeRange
       const x = progress * chartWidth + padding
 
-      // Find the price at this date
-      let y = chartHeight / 2 + padding
-      const closestDataIndex = Math.round(progress * (data.length - 1))
-      if (closestDataIndex >= 0 && closestDataIndex < data.length) {
-        const price = data[closestDataIndex].price
-        y = height - ((price - minPrice) / range) * chartHeight - padding
+      // Find closest data point to get the y position (price level)
+      let closestIndex = 0
+      let closestDiff = Infinity
+      for (let i = 0; i < data.length; i++) {
+        const dataTimestamp = getTimestamp(data[i], i)
+        const diff = Math.abs(dataTimestamp - newsTimestamp)
+        if (diff < closestDiff) {
+          closestDiff = diff
+          closestIndex = i
+        }
       }
+
+      // Interpolate price for more accurate y positioning
+      const price = data[closestIndex].price
+      const y = height - ((price - minPrice) / range) * chartHeight - padding
 
       return { ...newsItem, x, y }
     })
@@ -225,7 +245,7 @@ export default function Chart({ data, news = [] }: ChartProps) {
               marginBottom: '4px',
             }}
           >
-            📰 NEWS
+            NEWS
           </div>
           <div
             style={{
@@ -245,7 +265,7 @@ export default function Chart({ data, news = [] }: ChartProps) {
               lineHeight: '1.4',
             }}
           >
-            {hoveredNews.description}
+            {hoveredNews.description !== hoveredNews.title ? hoveredNews.description : ''}
           </div>
           <div
             style={{
@@ -255,7 +275,17 @@ export default function Chart({ data, news = [] }: ChartProps) {
               paddingTop: '6px',
             }}
           >
-            <div>{new Date(hoveredNews.date).toLocaleDateString('en-US')} · {new Date(hoveredNews.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</div>
+            <div>
+              {new Date(hoveredNews.date).toLocaleDateString('en-US', {
+                weekday: 'short',
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric'
+              })} at {new Date(hoveredNews.date).toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </div>
             <div style={{ marginTop: '2px', color: '#888' }}>Source: {hoveredNews.source}</div>
           </div>
         </div>

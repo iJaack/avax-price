@@ -13,7 +13,7 @@ export interface PriceData {
   change24h: number
   minPrice24h: number
   maxPrice24h: number
-  history: Array<{ time: number; price: number }>
+  history: Array<{ date: string; timestamp: number; price: number }>
 }
 
 export interface PriceState {
@@ -22,7 +22,7 @@ export interface PriceState {
   change24h: number | null
   minPrice24h: number | null
   maxPrice24h: number | null
-  priceHistory: Array<{ time: number; price: number }>
+  priceHistory: Array<{ date: string; timestamp: number; price: number }>
   loading: boolean
   priceDirection: 'up' | 'down' | 'neutral'
 }

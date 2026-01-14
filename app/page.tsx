@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import Chart from '@/components/Chart'
 import type { NewsItem, PriceDirection } from '@/lib/types'
 
-// Price API Service
+// Price API Service - for initial data with history
 const priceService = {
   fetch: async () => {
     const response = await fetch('/api/price')
@@ -119,28 +119,39 @@ function usePriceAnimation(basePrice: number | null, displayPrice: number | null
   const [priceDirection, setPriceDirection] = useState<PriceDirection>('neutral')
   const animationFrameRef = useRef<number>()
   const resetTimeoutRef = useRef<NodeJS.Timeout>()
+  const prevPriceRef = useRef<number | null>(null)
 
   useEffect(() => {
-    if (!displayPrice || !basePrice) return
+    if (basePrice === null) return
 
-    const roundedDisplay = Math.round(displayPrice * 100) / 100
     const roundedBase = Math.round(basePrice * 100) / 100
+    const prevPrice = prevPriceRef.current
 
-    if (roundedDisplay === roundedBase) return
+    // Set initial price without animation
+    if (prevPrice === null) {
+      setAnimatedPrice(roundedBase)
+      prevPriceRef.current = roundedBase
+      return
+    }
+
+    // Skip if price hasn't changed
+    if (roundedBase === prevPrice) return
 
     if (resetTimeoutRef.current) clearTimeout(resetTimeoutRef.current)
     if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current)
 
-    setPriceDirection(roundedBase > roundedDisplay ? 'up' : 'down')
+    // Set direction based on price movement
+    setPriceDirection(roundedBase > prevPrice ? 'up' : 'down')
 
     let animationStartTime: number
     const animationDuration = 400
+    const startPrice = prevPrice
 
     const animate = (timestamp: number) => {
       if (!animationStartTime) animationStartTime = timestamp
       const progress = Math.min((timestamp - animationStartTime) / animationDuration, 1)
       const easeProgress = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2
-      const newPrice = displayPrice + (roundedBase - displayPrice) * easeProgress
+      const newPrice = startPrice + (roundedBase - startPrice) * easeProgress
 
       setAnimatedPrice(newPrice)
 
@@ -148,6 +159,7 @@ function usePriceAnimation(basePrice: number | null, displayPrice: number | null
         animationFrameRef.current = requestAnimationFrame(animate)
       } else {
         setAnimatedPrice(roundedBase)
+        prevPriceRef.current = roundedBase
         resetTimeoutRef.current = setTimeout(() => setPriceDirection('neutral'), 300)
       }
     }
@@ -169,38 +181,86 @@ function usePriceAnimation(basePrice: number | null, displayPrice: number | null
   return { animatedPrice, priceDirection }
 }
 
-// Custom Hook: usePriceData
+// Custom Hook: usePriceData with SSE for real-time updates
 function usePriceData() {
   const [basePrice, setBasePrice] = useState<number | null>(null)
   const [change24h, setChange24h] = useState<number | null>(null)
   const [minPrice24h, setMinPrice24h] = useState<number | null>(null)
   const [maxPrice24h, setMaxPrice24h] = useState<number | null>(null)
-  const [priceHistory, setPriceHistory] = useState<any[]>([])
+  const [priceHistory, setPriceHistory] = useState<Array<{ date: string; timestamp: number; price: number }>>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const eventSourceRef = useRef<EventSource | null>(null)
 
-  useEffect(() => {
-    const fetchPrice = async () => {
+  // Fetch initial data including history
+  const fetchInitialData = useCallback(async () => {
+    try {
+      const data = await priceService.fetch()
+      setBasePrice(data.price)
+      setChange24h(data.change24h)
+      setMinPrice24h(data.minPrice24h)
+      setMaxPrice24h(data.maxPrice24h)
+      setPriceHistory(data.history)
+      setError(null)
+    } catch (err) {
+      console.error('Error fetching initial price:', err)
+      setError('Failed to fetch price data')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  // Connect to SSE stream for real-time price updates
+  const connectToStream = useCallback(() => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close()
+    }
+
+    const eventSource = new EventSource('/api/price/stream')
+    eventSourceRef.current = eventSource
+
+    eventSource.onmessage = (event) => {
       try {
-        const data = await priceService.fetch()
+        const data = JSON.parse(event.data)
+        if (data.error) {
+          console.error('Stream error:', data.error)
+          return
+        }
         setBasePrice(data.price)
-        setChange24h(data.change24h)
-        setMinPrice24h(data.minPrice24h)
-        setMaxPrice24h(data.maxPrice24h)
-        setPriceHistory(data.history)
+        if (data.change24h !== undefined) {
+          setChange24h(data.change24h)
+        }
         setError(null)
       } catch (err) {
-        console.error('Error fetching price:', err)
-        setError('Failed to fetch price data')
-      } finally {
-        setLoading(false)
+        console.error('Error parsing stream data:', err)
       }
     }
 
-    fetchPrice()
-    const interval = setInterval(fetchPrice, 1500)
-    return () => clearInterval(interval)
+    eventSource.onerror = (err) => {
+      console.error('EventSource error:', err)
+      eventSource.close()
+      // Reconnect after 5 seconds
+      setTimeout(connectToStream, 5000)
+    }
+
+    return eventSource
   }, [])
+
+  useEffect(() => {
+    // Fetch initial data first
+    fetchInitialData()
+
+    // Then connect to real-time stream
+    const eventSource = connectToStream()
+
+    // Refresh full data (including history) every 60 seconds
+    const fullRefreshInterval = setInterval(fetchInitialData, 60000)
+
+    return () => {
+      if (eventSource) eventSource.close()
+      clearInterval(fullRefreshInterval)
+    }
+  }, [fetchInitialData, connectToStream])
 
   return { basePrice, change24h, minPrice24h, maxPrice24h, priceHistory, loading, error }
 }
@@ -224,6 +284,9 @@ function useNewsData() {
     }
 
     fetchNews()
+    // Refresh news every 5 minutes
+    const interval = setInterval(fetchNews, 5 * 60 * 1000)
+    return () => clearInterval(interval)
   }, [])
 
   return { news, error }
@@ -233,14 +296,7 @@ function useNewsData() {
 export default function Home() {
   const priceData = usePriceData()
   const newsData = useNewsData()
-  const [displayPrice, setDisplayPrice] = useState<number | null>(null)
-  const { animatedPrice, priceDirection } = usePriceAnimation(priceData.basePrice, displayPrice || priceData.basePrice)
-
-  useEffect(() => {
-    if (priceData.basePrice !== null) {
-      setDisplayPrice(priceData.basePrice)
-    }
-  }, [priceData.basePrice])
+  const { animatedPrice, priceDirection } = usePriceAnimation(priceData.basePrice, null)
 
   if (priceData.loading) {
     return (
