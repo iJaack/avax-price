@@ -1,295 +1,100 @@
 'use client'
-import { useMemo, useState } from 'react'
-
-interface NewsItem {
-  title: string
-  description: string
-  date: string
-  timestamp: number
-  url: string
-  source: string
-}
+import { useMemo } from 'react'
 
 interface ChartProps {
   data: Array<{ date: string; timestamp?: number; price: number }>
-  news?: NewsItem[]
+  color?: string
 }
 
-export default function Chart({ data, news = [] }: ChartProps) {
-  const [hoveredNews, setHoveredNews] = useState<NewsItem | null>(null)
+export default function Chart({ data, color = '#E84142' }: ChartProps) {
   const chartDimensions = useMemo(() => {
     if (typeof window === 'undefined') {
-      return { width: 900, height: 300, padding: 40 }
+      return { width: 600, height: 200 }
     }
-    const isMobile = window.innerWidth < 768
-    const isTablet = window.innerWidth < 1024
-
-    if (isMobile) {
-      return {
-        width: Math.min(window.innerWidth - 32, 500),
-        height: 200,
-        padding: 20,
-      }
-    }
-    if (isTablet) {
-      return {
-        width: Math.min(window.innerWidth - 64, 700),
-        height: 250,
-        padding: 30,
-      }
-    }
+    const isMobile = window.innerWidth < 640
     return {
-      width: Math.min(window.innerWidth - 128, 900),
-      height: 300,
-      padding: 40,
+      width: isMobile ? Math.min(window.innerWidth - 48, 400) : 600,
+      height: isMobile ? 150 : 200,
     }
   }, [])
 
-  const { width, height, padding } = chartDimensions
-  const chartWidth = width - padding * 2
-  const chartHeight = height - padding * 2
+  const { width, height } = chartDimensions
+  const padding = { top: 20, right: 10, bottom: 30, left: 10 }
+  const chartWidth = width - padding.left - padding.right
+  const chartHeight = height - padding.top - padding.bottom
 
   if (!data || data.length === 0) {
     return (
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: '100%',
-          height: '300px',
-        }}
-      >
-        <p style={{ color: '#666' }}>Loading chart...</p>
+      <div className="flex items-center justify-center w-full h-[200px]">
+        <p className="text-zinc-600 text-sm">Loading chart...</p>
       </div>
     )
   }
 
-  const minPrice = Math.min(...data.map((d) => d.price))
-  const maxPrice = Math.max(...data.map((d) => d.price))
+  const prices = data.map(d => d.price)
+  const minPrice = Math.min(...prices)
+  const maxPrice = Math.max(...prices)
   const range = maxPrice - minPrice || 1
 
+  // Create points
   const points = data.map((point, index) => {
-    const x = (index / Math.max(data.length - 1, 1)) * chartWidth + padding
-    const y = height - ((point.price - minPrice) / range) * chartHeight - padding
+    const x = (index / Math.max(data.length - 1, 1)) * chartWidth + padding.left
+    const y = padding.top + chartHeight - ((point.price - minPrice) / range) * chartHeight
     return { x, y }
   })
 
+  // Create smooth path
   let pathD = `M ${points[0].x} ${points[0].y}`
   for (let i = 1; i < points.length; i++) {
     const curr = points[i]
     const prev = points[i - 1]
-    const next = i < points.length - 1 ? points[i + 1] : curr
-
-    const cpix = prev.x + (curr.x - prev.x) / 3
-    const cpiy = prev.y + (curr.y - prev.y) / 3
-    const cp2x = curr.x - (next.x - prev.x) / 3
-    const cp2y = curr.y - (next.y - prev.y) / 3
-
-    pathD += ` C ${cpix} ${cpiy}, ${cp2x} ${cp2y}, ${curr.x} ${curr.y}`
+    const cpx = (prev.x + curr.x) / 2
+    pathD += ` Q ${prev.x + (curr.x - prev.x) / 4} ${prev.y}, ${cpx} ${(prev.y + curr.y) / 2}`
+    pathD += ` Q ${curr.x - (curr.x - prev.x) / 4} ${curr.y}, ${curr.x} ${curr.y}`
   }
 
-  // Get timestamp range from data - use actual timestamps if available
-  const getTimestamp = (item: { date: string; timestamp?: number }, index: number) => {
-    if (item.timestamp) return item.timestamp
-    // Fallback: parse date string
-    const parsed = new Date(item.date).getTime()
-    if (!isNaN(parsed)) return parsed
-    // Last fallback: calculate based on index (30 days ago)
-    const now = Date.now()
-    const daysAgo = data.length - 1 - index
-    return now - daysAgo * 24 * 60 * 60 * 1000
-  }
-
-  const firstTimestamp = getTimestamp(data[0], 0)
-  const lastTimestamp = getTimestamp(data[data.length - 1], data.length - 1)
-  const timeRange = lastTimestamp - firstTimestamp || 1
-
-  // Map news items to chart coordinates using precise timestamps
-  const newsMarkers = news
-    .map((newsItem) => {
-      const newsTimestamp = newsItem.timestamp
-
-      // Only show news within the chart time range
-      if (newsTimestamp < firstTimestamp || newsTimestamp > lastTimestamp) {
-        return null
-      }
-
-      // Calculate x position based on timestamp
-      const progress = (newsTimestamp - firstTimestamp) / timeRange
-      const x = progress * chartWidth + padding
-
-      // Find closest data point to get the y position (price level)
-      let closestIndex = 0
-      let closestDiff = Infinity
-      for (let i = 0; i < data.length; i++) {
-        const dataTimestamp = getTimestamp(data[i], i)
-        const diff = Math.abs(dataTimestamp - newsTimestamp)
-        if (diff < closestDiff) {
-          closestDiff = diff
-          closestIndex = i
-        }
-      }
-
-      // Interpolate price for more accurate y positioning
-      const price = data[closestIndex].price
-      const y = height - ((price - minPrice) / range) * chartHeight - padding
-
-      return { ...newsItem, x, y }
-    })
-    .filter((marker) => marker !== null) as (NewsItem & { x: number; y: number })[]
+  // Create gradient area path
+  const areaPath = pathD + ` L ${points[points.length - 1].x} ${height - padding.bottom} L ${points[0].x} ${height - padding.bottom} Z`
 
   return (
-    <div
-      style={{
-        width: '100%',
-        display: 'flex',
-        justifyContent: 'center',
-        overflow: 'auto',
-        position: 'relative',
-      }}
-    >
+    <div className="w-full">
       <svg
-        style={{
-          width: `${width}px`,
-          height: `${height}px`,
-          display: 'block',
-          minWidth: '100%',
-          overflow: 'visible',
-        }}
+        width="100%"
+        height={height}
         viewBox={`0 0 ${width} ${height}`}
+        preserveAspectRatio="xMidYMid meet"
       >
-        {/* Grid lines and labels */}
-        <g opacity="0.1">
-          <line
-            x1={padding}
-            y1={padding}
-            x2={width - padding}
-            y2={padding}
-            stroke="#888"
-          />
-          <line
-            x1={padding}
-            y1={height - padding}
-            x2={width - padding}
-            y2={height - padding}
-            stroke="#888"
-          />
-        </g>
+        <defs>
+          <linearGradient id="chartGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+            <stop offset="100%" stopColor={color} stopOpacity="0" />
+          </linearGradient>
+        </defs>
 
-        {/* Price line */}
+        {/* Area fill */}
+        <path
+          d={areaPath}
+          fill="url(#chartGradient)"
+        />
+
+        {/* Line */}
         <path
           d={pathD}
-          stroke="#60a5fa"
-          strokeWidth="2.5"
+          stroke={color}
+          strokeWidth="2"
           fill="none"
           strokeLinecap="round"
           strokeLinejoin="round"
         />
 
-        {/* News markers */}
-        {newsMarkers.map((marker, idx) => (
-          <g key={idx}>
-            {/* Vertical line from chart to marker */}
-            <line
-              x1={marker.x}
-              y1={marker.y}
-              x2={marker.x}
-              y2={padding - 5}
-              stroke="#ef4444"
-              strokeWidth="1.5"
-              strokeDasharray="3,3"
-              opacity="0.5"
-            />
-            {/* Marker circle */}
-            <circle
-              cx={marker.x}
-              cy={padding - 15}
-              r="5"
-              fill="#ef4444"
-              stroke="#fff"
-              strokeWidth="2"
-              style={{
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-              }}
-              onMouseEnter={() => setHoveredNews(marker)}
-              onMouseLeave={() => setHoveredNews(null)}
-            />
-          </g>
-        ))}
+        {/* Current price dot */}
+        <circle
+          cx={points[points.length - 1].x}
+          cy={points[points.length - 1].y}
+          r="4"
+          fill={color}
+        />
       </svg>
-
-      {/* News tooltip */}
-      {hoveredNews && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '10px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            backgroundColor: '#1a1a1a',
-            border: '1px solid #ef4444',
-            borderRadius: '8px',
-            padding: '12px 16px',
-            maxWidth: '280px',
-            zIndex: 10,
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
-          }}
-        >
-          <div
-            style={{
-              fontSize: '12px',
-              color: '#ef4444',
-              fontWeight: '600',
-              marginBottom: '4px',
-            }}
-          >
-            NEWS
-          </div>
-          <div
-            style={{
-              fontSize: '13px',
-              fontWeight: '600',
-              color: '#fff',
-              marginBottom: '6px',
-            }}
-          >
-            {hoveredNews.title}
-          </div>
-          <div
-            style={{
-              fontSize: '11px',
-              color: '#aaa',
-              marginBottom: '6px',
-              lineHeight: '1.4',
-            }}
-          >
-            {hoveredNews.description !== hoveredNews.title ? hoveredNews.description : ''}
-          </div>
-          <div
-            style={{
-              fontSize: '10px',
-              color: '#666',
-              borderTop: '1px solid #333',
-              paddingTop: '6px',
-            }}
-          >
-            <div>
-              {new Date(hoveredNews.date).toLocaleDateString('en-US', {
-                weekday: 'short',
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric'
-              })} at {new Date(hoveredNews.date).toLocaleTimeString('en-US', {
-                hour: '2-digit',
-                minute: '2-digit'
-              })}
-            </div>
-            <div style={{ marginTop: '2px', color: '#888' }}>Source: {hoveredNews.source}</div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

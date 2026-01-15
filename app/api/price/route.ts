@@ -1,74 +1,68 @@
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-export async function GET() {
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url)
+  const days = searchParams.get('days') || '30'
+
   try {
-    // Fetch current price from CoinGecko with timeout
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 8000)
 
+    // Fetch detailed market data including market cap and volume
     const response = await fetch(
-      'https://api.coingecko.com/api/v3/simple/price?ids=avalanche-2&vs_currencies=usd&include_24hr_change=true',
+      'https://api.coingecko.com/api/v3/coins/avalanche-2?localization=false&tickers=false&community_data=false&developer_data=false',
       {
         cache: 'no-store',
         signal: controller.signal,
-        headers: {
-          'Accept': 'application/json',
-        }
+        headers: { 'Accept': 'application/json' }
       }
     )
     clearTimeout(timeout)
 
     if (!response.ok) throw new Error(`CoinGecko API failed: ${response.status}`)
-    const priceData = await response.json()
-    const price = priceData['avalanche-2']?.usd
-    const change24h = priceData['avalanche-2']?.usd_24h_change
+    const coinData = await response.json()
+
+    const price = coinData.market_data?.current_price?.usd
+    const change24h = coinData.market_data?.price_change_percentage_24h
+    const marketCap = coinData.market_data?.market_cap?.usd
+    const volume24h = coinData.market_data?.total_volume?.usd
+    const high24h = coinData.market_data?.high_24h?.usd
+    const low24h = coinData.market_data?.low_24h?.usd
 
     if (!price) throw new Error('Invalid price data')
 
-    // Fetch 24-hour and 30-day data in parallel
-    const [day24Response, historyResponse] = await Promise.all([
-      fetch(
-        'https://api.coingecko.com/api/v3/coins/avalanche-2/market_chart?vs_currency=usd&days=1&interval=hourly',
-        { cache: 'no-store' }
-      ),
-      fetch(
-        'https://api.coingecko.com/api/v3/coins/avalanche-2/market_chart?vs_currency=usd&days=30&interval=daily',
-        { cache: 'no-store' }
-      )
-    ])
+    // Fetch chart history based on requested time period
+    const historyResponse = await fetch(
+      `https://api.coingecko.com/api/v3/coins/avalanche-2/market_chart?vs_currency=usd&days=${days}`,
+      { cache: 'no-store' }
+    )
 
-    if (!day24Response.ok || !historyResponse.ok) throw new Error('History fetch failed')
-
-    const day24Data = await day24Response.json()
-    const historyData = await historyResponse.json()
-
-    // Calculate 24h min/max from hourly data
-    const last24hPrices = day24Data.prices?.map((item: [number, number]) => item[1]) || []
-    const minPrice24h = last24hPrices.length > 0 ? Math.min(...last24hPrices, price) : price * 0.98
-    const maxPrice24h = last24hPrices.length > 0 ? Math.max(...last24hPrices, price) : price * 1.02
-
-    // Use 30-day daily data for chart
-    const history = (historyData.prices || []).map((item: [number, number]) => ({
-      date: new Date(item[0]).toLocaleDateString('en-US'),
-      timestamp: item[0],
-      price: item[1]
-    }))
+    let history: Array<{ date: string; timestamp: number; price: number }> = []
+    if (historyResponse.ok) {
+      const historyData = await historyResponse.json()
+      history = (historyData.prices || []).map((item: [number, number]) => ({
+        date: new Date(item[0]).toLocaleDateString('en-US'),
+        timestamp: item[0],
+        price: item[1]
+      }))
+    }
 
     return Response.json({
       price: Math.round(price * 100) / 100,
       change24h: Math.round((change24h || 0) * 100) / 100,
-      minPrice24h: Math.round(minPrice24h * 100) / 100,
-      maxPrice24h: Math.round(maxPrice24h * 100) / 100,
+      minPrice24h: Math.round((low24h || price * 0.98) * 100) / 100,
+      maxPrice24h: Math.round((high24h || price * 1.02) * 100) / 100,
+      marketCap: marketCap || 0,
+      volume24h: volume24h || 0,
       history,
       timestamp: new Date().toISOString()
     })
   } catch (error) {
     console.error('Error fetching price:', error)
 
-    // Return fallback data so the app doesn't break
     const now = Date.now()
-    const fallbackPrice = 22.50 // Approximate AVAX price
+    const fallbackPrice = 22.50
     const fallbackHistory = Array.from({ length: 30 }, (_, i) => {
       const date = new Date(now - (29 - i) * 24 * 60 * 60 * 1000)
       return {
@@ -83,6 +77,8 @@ export async function GET() {
       change24h: 0,
       minPrice24h: fallbackPrice * 0.98,
       maxPrice24h: fallbackPrice * 1.02,
+      marketCap: 9000000000,
+      volume24h: 250000000,
       history: fallbackHistory,
       timestamp: new Date().toISOString(),
       isFallback: true
