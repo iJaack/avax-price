@@ -62,23 +62,23 @@ export async function GET(request: Request) {
     console.error('Error fetching price:', error)
 
     const now = Date.now()
-    const fallbackPrice = 22.50
+    const fallbackPrice = 14.50
     const fallbackHistory = Array.from({ length: 30 }, (_, i) => {
       const date = new Date(now - (29 - i) * 24 * 60 * 60 * 1000)
       return {
         date: date.toLocaleDateString('en-US'),
         timestamp: date.getTime(),
-        price: fallbackPrice + (Math.random() - 0.5) * 4
+        price: fallbackPrice + (Math.random() - 0.5) * 2
       }
     })
 
     return Response.json({
       price: fallbackPrice,
-      change24h: 0,
+      change24h: -2.5,
       minPrice24h: fallbackPrice * 0.98,
       maxPrice24h: fallbackPrice * 1.02,
-      marketCap: 9000000000,
-      volume24h: 250000000,
+      marketCap: 6200000000,
+      volume24h: 180000000,
       history: fallbackHistory,
       timestamp: new Date().toISOString(),
       isFallback: true

@@ -35,8 +35,19 @@ function getTimeRemaining(): string {
   return `${hours}h ${minutes}m ${seconds}s`
 }
 
+interface LeverageData {
+  fundingRate: string
+  fundingSentiment: string
+  openInterestUsd: number
+  oiSentiment: string
+  longShortRatio: string
+  positionSentiment: string
+  takerRatio: string
+  takerSentiment: string
+}
+
 export default function Home() {
-  const [price, setPrice] = useState<number>(22.50)
+  const [price, setPrice] = useState<number>(14.50)
   const [change24h, setChange24h] = useState<number>(0)
   const [marketCap, setMarketCap] = useState<number>(0)
   const [history, setHistory] = useState<Array<{ price: number; timestamp: number }>>([])
@@ -44,6 +55,16 @@ export default function Home() {
   const [loading, setLoading] = useState(true)
   const [timeLeft, setTimeLeft] = useState(getTimeRemaining())
   const [news, setNews] = useState<NewsItem[]>([])
+  const [leverage, setLeverage] = useState<LeverageData>({
+    fundingRate: '0.0012',
+    fundingSentiment: 'slightly bullish',
+    openInterestUsd: 245000000,
+    oiSentiment: 'stable',
+    longShortRatio: '1.85',
+    positionSentiment: 'heavy longs',
+    takerRatio: '1.12',
+    takerSentiment: 'buyers lead'
+  })
 
   // Timer for countdown
   useEffect(() => {
@@ -82,12 +103,32 @@ export default function Home() {
       }
     } catch {
       setNews([
-        { title: 'AVAX subnet activity reaches new highs with gaming integrations', source: 'CoinDesk', url: '#' },
-        { title: 'Avalanche Foundation launches ecosystem growth initiative', source: 'The Block', url: '#' },
-        { title: 'Major DeFi protocol announces Avalanche expansion', source: 'Decrypt', url: '#' },
-        { title: 'AVAX staking rewards see increased participation', source: 'CryptoSlate', url: '#' },
-        { title: 'New institutional custody solution launches for AVAX', source: 'Bloomberg', url: '#' },
+        { title: 'AVAX subnet activity reaches new highs with gaming integrations', source: 'CoinDesk', url: 'https://www.coindesk.com/search?q=avalanche' },
+        { title: 'Avalanche Foundation launches ecosystem growth initiative', source: 'The Block', url: 'https://www.theblock.co/search?query=avalanche' },
+        { title: 'Major DeFi protocol announces Avalanche expansion', source: 'Decrypt', url: 'https://decrypt.co/search?query=avalanche' },
+        { title: 'AVAX staking rewards see increased participation', source: 'CryptoSlate', url: 'https://cryptoslate.com/coins/avalanche/' },
+        { title: 'New institutional custody solution launches for AVAX', source: 'CoinTelegraph', url: 'https://cointelegraph.com/tags/avalanche' },
       ])
+    }
+  }
+
+  // Fetch leverage data
+  const fetchLeverage = async () => {
+    try {
+      const res = await fetch('/api/leverage')
+      const data = await res.json()
+      setLeverage({
+        fundingRate: data.fundingRate || '0.0012',
+        fundingSentiment: data.fundingSentiment || 'slightly bullish',
+        openInterestUsd: data.openInterestUsd || 245000000,
+        oiSentiment: data.oiSentiment || 'stable',
+        longShortRatio: data.longShortRatio || '1.85',
+        positionSentiment: data.positionSentiment || 'heavy longs',
+        takerRatio: data.takerRatio || '1.12',
+        takerSentiment: data.takerSentiment || 'buyers lead'
+      })
+    } catch {
+      // Keep default values
     }
   }
 
@@ -100,13 +141,18 @@ export default function Home() {
 
   useEffect(() => {
     fetchNews()
+    fetchLeverage()
     const priceInterval = setInterval(() => {
       const periodMap: Record<string, string> = {
         '1H': '0.04', '1D': '1', '1W': '7', '1M': '30', '1Y': '365', 'ALL': 'max'
       }
       fetchPrice(periodMap[selectedPeriod] || '1')
     }, 10000)
-    return () => clearInterval(priceInterval)
+    const leverageInterval = setInterval(fetchLeverage, 60000) // Update leverage every minute
+    return () => {
+      clearInterval(priceInterval)
+      clearInterval(leverageInterval)
+    }
   }, [selectedPeriod])
 
   // Chart calculations
@@ -255,9 +301,14 @@ export default function Home() {
               ))}
             </div>
 
-            <button className="w-full mt-5 py-2.5 text-xs text-neutral-500 border border-neutral-800 rounded-lg hover:border-neutral-700 transition-colors">
+            <a
+              href="https://kalshi.com/markets/crypto"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block w-full mt-5 py-2.5 text-xs text-neutral-500 border border-neutral-800 rounded-lg hover:border-neutral-700 transition-colors text-center"
+            >
               view more markets
-            </button>
+            </a>
 
             <p className="text-center text-[10px] text-neutral-600 mt-3">
               $1.2K at stake · $890 traded
@@ -277,23 +328,29 @@ export default function Home() {
 
             <div className="grid grid-cols-4 gap-3">
               <div className="bg-neutral-800/50 rounded-lg p-3 text-center">
-                <div className="text-green-500 text-[11px] font-medium mb-1">slightly bullish</div>
-                <div className="text-white text-sm font-semibold">+0.0012%</div>
+                <div className={`text-[11px] font-medium mb-1 ${leverage.fundingSentiment.includes('bullish') ? 'text-green-500' : leverage.fundingSentiment.includes('bearish') ? 'text-red-500' : 'text-neutral-400'}`}>
+                  {leverage.fundingSentiment}
+                </div>
+                <div className="text-white text-sm font-semibold">+{leverage.fundingRate}%</div>
                 <div className="text-[9px] text-neutral-600 mt-1">FUNDING RATE</div>
               </div>
               <div className="bg-neutral-800/50 rounded-lg p-3 text-center">
-                <div className="text-neutral-400 text-[11px] font-medium mb-1">stable</div>
-                <div className="text-white text-sm font-semibold">$245M</div>
-                <div className="text-[9px] text-neutral-600 mt-1">OI 24H Δ</div>
+                <div className="text-neutral-400 text-[11px] font-medium mb-1">{leverage.oiSentiment}</div>
+                <div className="text-white text-sm font-semibold">${(leverage.openInterestUsd / 1e6).toFixed(0)}M</div>
+                <div className="text-[9px] text-neutral-600 mt-1">OPEN INTEREST</div>
               </div>
               <div className="bg-neutral-800/50 rounded-lg p-3 text-center">
-                <div className="text-neutral-400 text-[11px] font-medium mb-1">heavy longs</div>
-                <div className="text-white text-sm font-semibold">1.85 L/S</div>
+                <div className={`text-[11px] font-medium mb-1 ${leverage.positionSentiment.includes('long') ? 'text-green-500' : 'text-red-500'}`}>
+                  {leverage.positionSentiment}
+                </div>
+                <div className="text-white text-sm font-semibold">{leverage.longShortRatio} L/S</div>
                 <div className="text-[9px] text-neutral-600 mt-1">POSITIONING</div>
               </div>
               <div className="bg-neutral-800/50 rounded-lg p-3 text-center">
-                <div className="text-green-500 text-[11px] font-medium mb-1">buyers lead</div>
-                <div className="text-white text-sm font-semibold">1.12</div>
+                <div className={`text-[11px] font-medium mb-1 ${leverage.takerSentiment.includes('buyers') ? 'text-green-500' : 'text-red-500'}`}>
+                  {leverage.takerSentiment}
+                </div>
+                <div className="text-white text-sm font-semibold">{leverage.takerRatio}</div>
                 <div className="text-[9px] text-neutral-600 mt-1">TAKER FLOW</div>
               </div>
             </div>
