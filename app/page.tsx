@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 
 interface NewsItem {
   title: string
@@ -8,16 +8,120 @@ interface NewsItem {
   url: string
 }
 
-// Rolling number digit
-function Digit({ value }: { value: string }) {
+interface LeverageData {
+  fundingRate: string
+  fundingSentiment: string
+  openInterestUsd: number
+  oiSentiment: string
+  longShortRatio: string
+  positionSentiment: string
+  takerRatio: string
+  takerSentiment: string
+}
+
+// Animated rolling digit component
+function RollingDigit({ digit, prevDigit }: { digit: string; prevDigit: string }) {
+  const [isAnimating, setIsAnimating] = useState(false)
+  const [displayDigit, setDisplayDigit] = useState(digit)
+
+  useEffect(() => {
+    if (digit !== prevDigit) {
+      setIsAnimating(true)
+      const timer = setTimeout(() => {
+        setDisplayDigit(digit)
+        setIsAnimating(false)
+      }, 300)
+      return () => clearTimeout(timer)
+    }
+  }, [digit, prevDigit])
+
+  if (digit === '.' || digit === '$') {
+    return <span className="inline-block">{digit}</span>
+  }
+
   return (
-    <span className="inline-block tabular-nums">{value}</span>
+    <span className="inline-block relative overflow-hidden h-[1em]" style={{ width: '0.6em' }}>
+      <span
+        className={`inline-block tabular-nums transition-transform duration-300 ease-out ${
+          isAnimating ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100'
+        }`}
+      >
+        {displayDigit}
+      </span>
+      {isAnimating && (
+        <span
+          className="absolute top-full left-0 inline-block tabular-nums transition-transform duration-300 ease-out translate-y-[-100%]"
+        >
+          {digit}
+        </span>
+      )}
+    </span>
   )
 }
 
-// Format price for display
-function formatPrice(price: number): string {
-  return price.toFixed(2)
+// Animated price display
+function AnimatedPrice({ price, className }: { price: number; className?: string }) {
+  const [prevPrice, setPrevPrice] = useState(price)
+  const priceStr = price.toFixed(2)
+  const prevPriceStr = prevPrice.toFixed(2)
+
+  useEffect(() => {
+    const timer = setTimeout(() => setPrevPrice(price), 350)
+    return () => clearTimeout(timer)
+  }, [price])
+
+  // Pad strings to same length for digit comparison
+  const maxLen = Math.max(priceStr.length, prevPriceStr.length)
+  const paddedCurrent = priceStr.padStart(maxLen, ' ')
+  const paddedPrev = prevPriceStr.padStart(maxLen, ' ')
+
+  return (
+    <span className={className}>
+      {paddedCurrent.split('').map((char, i) => (
+        <RollingDigit key={i} digit={char} prevDigit={paddedPrev[i] || ' '} />
+      ))}
+    </span>
+  )
+}
+
+// Smooth number interpolation hook
+function useAnimatedValue(targetValue: number, duration: number = 500) {
+  const [value, setValue] = useState(targetValue)
+  const frameRef = useRef<number>()
+  const startTimeRef = useRef<number>()
+  const startValueRef = useRef(targetValue)
+
+  useEffect(() => {
+    if (targetValue === value) return
+
+    startValueRef.current = value
+    startTimeRef.current = performance.now()
+
+    const animate = (currentTime: number) => {
+      const elapsed = currentTime - (startTimeRef.current || currentTime)
+      const progress = Math.min(elapsed / duration, 1)
+
+      // Ease out cubic
+      const easeOut = 1 - Math.pow(1 - progress, 3)
+      const newValue = startValueRef.current + (targetValue - startValueRef.current) * easeOut
+
+      setValue(newValue)
+
+      if (progress < 1) {
+        frameRef.current = requestAnimationFrame(animate)
+      }
+    }
+
+    frameRef.current = requestAnimationFrame(animate)
+
+    return () => {
+      if (frameRef.current) {
+        cancelAnimationFrame(frameRef.current)
+      }
+    }
+  }, [targetValue, duration])
+
+  return value
 }
 
 // Calculate time until 5pm EST
@@ -33,17 +137,6 @@ function getTimeRemaining(): string {
   const seconds = Math.floor((diff % (1000 * 60)) / 1000)
 
   return `${hours}h ${minutes}m ${seconds}s`
-}
-
-interface LeverageData {
-  fundingRate: string
-  fundingSentiment: string
-  openInterestUsd: number
-  oiSentiment: string
-  longShortRatio: string
-  positionSentiment: string
-  takerRatio: string
-  takerSentiment: string
 }
 
 export default function Home() {
@@ -65,6 +158,11 @@ export default function Home() {
     takerRatio: '1.12',
     takerSentiment: 'buyers lead'
   })
+  const [isChartTransitioning, setIsChartTransitioning] = useState(false)
+
+  // Animated values for smooth transitions
+  const animatedPrice = useAnimatedValue(price, 600)
+  const animatedChange = useAnimatedValue(change24h, 600)
 
   // Timer for countdown
   useEffect(() => {
@@ -73,7 +171,7 @@ export default function Home() {
   }, [])
 
   // Fetch price
-  const fetchPrice = async (days: string = '1') => {
+  const fetchPrice = useCallback(async (days: string = '1') => {
     try {
       const res = await fetch(`/api/price?days=${days}`)
       const data = await res.json()
@@ -90,8 +188,9 @@ export default function Home() {
       console.error('Price fetch error:', err)
     } finally {
       setLoading(false)
+      setIsChartTransitioning(false)
     }
-  }
+  }, [])
 
   // Fetch news
   const fetchNews = async () => {
@@ -132,12 +231,19 @@ export default function Home() {
     }
   }
 
+  // Handle period change with transition
+  const handlePeriodChange = (period: string) => {
+    if (period === selectedPeriod) return
+    setIsChartTransitioning(true)
+    setSelectedPeriod(period)
+  }
+
   useEffect(() => {
     const periodMap: Record<string, string> = {
       '1H': '0.04', '1D': '1', '1W': '7', '1M': '30', '1Y': '365', 'ALL': 'max'
     }
     fetchPrice(periodMap[selectedPeriod] || '1')
-  }, [selectedPeriod])
+  }, [selectedPeriod, fetchPrice])
 
   useEffect(() => {
     fetchNews()
@@ -148,42 +254,59 @@ export default function Home() {
       }
       fetchPrice(periodMap[selectedPeriod] || '1')
     }, 10000)
-    const leverageInterval = setInterval(fetchLeverage, 60000) // Update leverage every minute
+    const leverageInterval = setInterval(fetchLeverage, 60000)
     return () => {
       clearInterval(priceInterval)
       clearInterval(leverageInterval)
     }
-  }, [selectedPeriod])
+  }, [selectedPeriod, fetchPrice])
 
-  // Chart calculations
+  // Chart calculations with smooth path
   const chartData = useMemo(() => {
-    if (!history.length) return { points: '', min: 0, max: 0, mid: 0 }
+    if (!history.length) return { path: '', min: 0, max: 0, mid: 0 }
     const prices = history.map(h => h.price)
     const min = Math.min(...prices)
     const max = Math.max(...prices)
     const mid = (min + max) / 2
     const range = max - min || 1
 
-    const pts = history.map((h, i) => {
-      const x = (i / (history.length - 1)) * 100
-      const y = 100 - ((h.price - min) / range) * 100
-      return `${x},${y}`
-    }).join(' ')
+    // Create smooth SVG path using cubic bezier curves
+    const points = history.map((h, i) => ({
+      x: (i / (history.length - 1)) * 100,
+      y: 100 - ((h.price - min) / range) * 100
+    }))
 
-    return { points: pts, min, max, mid }
+    if (points.length < 2) return { path: '', min, max, mid }
+
+    // Start path
+    let path = `M ${points[0].x},${points[0].y}`
+
+    // Use quadratic curves for smoother lines
+    for (let i = 1; i < points.length; i++) {
+      const prev = points[i - 1]
+      const curr = points[i]
+      const cpx = (prev.x + curr.x) / 2
+      path += ` Q ${prev.x},${prev.y} ${cpx},${(prev.y + curr.y) / 2}`
+    }
+
+    // Final point
+    const last = points[points.length - 1]
+    path += ` L ${last.x},${last.y}`
+
+    return { path, min, max, mid }
   }, [history])
 
   // Dynamic predictions based on price
   const predictions = useMemo(() => {
-    const base = Math.ceil(price)
+    const base = Math.ceil(animatedPrice)
     return [
       { label: `${base + 2} or above`, yes: 25, no: 75 },
       { label: `${base + 1} or above`, yes: 38, no: 62 },
       { label: `${base} or above`, yes: 52, no: 48 },
     ]
-  }, [price])
+  }, [animatedPrice])
 
-  const isPositive = change24h >= 0
+  const isPositive = animatedChange >= 0
 
   if (loading) {
     return (
@@ -202,16 +325,15 @@ export default function Home() {
           <h1 className="text-neutral-500 text-sm tracking-[0.25em] font-medium">AVAX</h1>
         </div>
 
-        {/* PRICE */}
+        {/* PRICE - Animated */}
         <div className="text-center mb-1">
           <div className="inline-flex items-baseline">
             <span className="text-white text-7xl font-extralight tracking-tight">
               <span className="text-5xl">$</span>
-              {formatPrice(price).split('.')[0]}
-              <span className="text-5xl">.{formatPrice(price).split('.')[1]}</span>
+              <AnimatedPrice price={animatedPrice} />
             </span>
-            <span className={`ml-4 text-xl ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
-              {isPositive ? '▲' : '▼'} {Math.abs(change24h).toFixed(2)}%
+            <span className={`ml-4 text-xl transition-colors duration-300 ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
+              {isPositive ? '▲' : '▼'} {Math.abs(animatedChange).toFixed(2)}%
             </span>
           </div>
         </div>
@@ -227,8 +349,8 @@ export default function Home() {
             {['1H', '1D', '1W', '1M', '1Y', 'ALL'].map(p => (
               <button
                 key={p}
-                onClick={() => setSelectedPeriod(p)}
-                className={`px-2.5 py-1 text-xs rounded transition-all ${
+                onClick={() => handlePeriodChange(p)}
+                className={`px-2.5 py-1 text-xs rounded transition-all duration-200 ${
                   selectedPeriod === p
                     ? 'bg-neutral-700 text-white'
                     : 'text-neutral-500 hover:text-neutral-300'
@@ -240,24 +362,29 @@ export default function Home() {
           </div>
         </div>
 
-        {/* CHART */}
+        {/* CHART - Animated */}
         <div className="relative h-48 mb-10">
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full">
             {/* Grid lines */}
             <line x1="0" y1="0" x2="100" y2="0" stroke="#262626" strokeWidth="0.3" />
             <line x1="0" y1="50" x2="100" y2="50" stroke="#262626" strokeWidth="0.3" />
             <line x1="0" y1="100" x2="100" y2="100" stroke="#262626" strokeWidth="0.3" />
-            {/* Price line */}
-            <polyline
-              points={chartData.points}
+            {/* Price line with smooth transition */}
+            <path
+              d={chartData.path}
               fill="none"
               stroke="#737373"
               strokeWidth="0.8"
               vectorEffect="non-scaling-stroke"
+              className={`transition-all duration-700 ease-out ${isChartTransitioning ? 'opacity-30' : 'opacity-100'}`}
+              style={{
+                strokeDasharray: isChartTransitioning ? '1000' : 'none',
+                strokeDashoffset: isChartTransitioning ? '1000' : '0',
+              }}
             />
           </svg>
-          {/* Price labels */}
-          <div className="absolute right-0 top-0 bottom-0 flex flex-col justify-between text-xs text-neutral-600 -mr-10 py-1">
+          {/* Price labels with animation */}
+          <div className={`absolute right-0 top-0 bottom-0 flex flex-col justify-between text-xs text-neutral-600 -mr-10 py-1 transition-opacity duration-500 ${isChartTransitioning ? 'opacity-30' : 'opacity-100'}`}>
             <span>${chartData.max.toFixed(0)}</span>
             <span>${chartData.mid.toFixed(0)}</span>
             <span>${chartData.min.toFixed(0)}</span>
@@ -285,13 +412,13 @@ export default function Home() {
                   <span className="text-sm text-neutral-400">{pred.label}</span>
                   <div className="flex gap-4">
                     <div className="text-center w-14">
-                      <div className={`text-sm font-semibold ${pred.yes >= 50 ? 'text-green-500' : 'text-green-600/70'}`}>
+                      <div className={`text-sm font-semibold transition-colors duration-300 ${pred.yes >= 50 ? 'text-green-500' : 'text-green-600/70'}`}>
                         {pred.yes}%
                       </div>
                       <div className="text-[10px] text-neutral-600">yes</div>
                     </div>
                     <div className="text-center w-14">
-                      <div className={`text-sm font-semibold ${pred.no >= 50 ? 'text-red-500' : 'text-red-600/70'}`}>
+                      <div className={`text-sm font-semibold transition-colors duration-300 ${pred.no >= 50 ? 'text-red-500' : 'text-red-600/70'}`}>
                         {pred.no}%
                       </div>
                       <div className="text-[10px] text-neutral-600">no</div>
@@ -328,7 +455,7 @@ export default function Home() {
 
             <div className="grid grid-cols-4 gap-3">
               <div className="bg-neutral-800/50 rounded-lg p-3 text-center">
-                <div className={`text-[11px] font-medium mb-1 ${leverage.fundingSentiment.includes('bullish') ? 'text-green-500' : leverage.fundingSentiment.includes('bearish') ? 'text-red-500' : 'text-neutral-400'}`}>
+                <div className={`text-[11px] font-medium mb-1 transition-colors duration-300 ${leverage.fundingSentiment.includes('bullish') ? 'text-green-500' : leverage.fundingSentiment.includes('bearish') ? 'text-red-500' : 'text-neutral-400'}`}>
                   {leverage.fundingSentiment}
                 </div>
                 <div className="text-white text-sm font-semibold">+{leverage.fundingRate}%</div>
@@ -340,14 +467,14 @@ export default function Home() {
                 <div className="text-[9px] text-neutral-600 mt-1">OPEN INTEREST</div>
               </div>
               <div className="bg-neutral-800/50 rounded-lg p-3 text-center">
-                <div className={`text-[11px] font-medium mb-1 ${leverage.positionSentiment.includes('long') ? 'text-green-500' : 'text-red-500'}`}>
+                <div className={`text-[11px] font-medium mb-1 transition-colors duration-300 ${leverage.positionSentiment.includes('long') ? 'text-green-500' : 'text-red-500'}`}>
                   {leverage.positionSentiment}
                 </div>
                 <div className="text-white text-sm font-semibold">{leverage.longShortRatio} L/S</div>
                 <div className="text-[9px] text-neutral-600 mt-1">POSITIONING</div>
               </div>
               <div className="bg-neutral-800/50 rounded-lg p-3 text-center">
-                <div className={`text-[11px] font-medium mb-1 ${leverage.takerSentiment.includes('buyers') ? 'text-green-500' : 'text-red-500'}`}>
+                <div className={`text-[11px] font-medium mb-1 transition-colors duration-300 ${leverage.takerSentiment.includes('buyers') ? 'text-green-500' : 'text-red-500'}`}>
                   {leverage.takerSentiment}
                 </div>
                 <div className="text-white text-sm font-semibold">{leverage.takerRatio}</div>
@@ -374,7 +501,7 @@ export default function Home() {
                     href={item.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-[10px] text-neutral-600 hover:text-neutral-400 whitespace-nowrap flex-shrink-0"
+                    className="text-[10px] text-neutral-600 hover:text-neutral-400 whitespace-nowrap flex-shrink-0 transition-colors"
                   >
                     {item.source} ↗
                   </a>
