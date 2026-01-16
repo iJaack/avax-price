@@ -9,6 +9,29 @@ export async function GET(request: Request) {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 8000)
 
+    // Fast live update for price only (Binance API)
+    const type = searchParams.get('type')
+    if (type === 'live') {
+      try {
+        const binanceRes = await fetch('https://api.binance.com/api/v3/ticker/24hr?symbol=AVAXUSDT', {
+          next: { revalidate: 1 },
+          signal: controller.signal
+        })
+
+        if (binanceRes.ok) {
+          const data = await binanceRes.json()
+          return Response.json({
+            price: parseFloat(data.lastPrice),
+            change24h: parseFloat(data.priceChangePercent),
+            timestamp: new Date().toISOString()
+          })
+        }
+      } catch (e) {
+        // Fallback to CoinGecko if Binance fails
+        console.error('Binance fetch failed:', e)
+      }
+    }
+
     // Fetch detailed market data including market cap and volume
     const response = await fetch(
       'https://api.coingecko.com/api/v3/coins/avalanche-2?localization=false&tickers=false&community_data=false&developer_data=false',

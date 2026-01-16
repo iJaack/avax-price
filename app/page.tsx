@@ -139,6 +139,35 @@ function getTimeRemaining(): string {
   return `${hours}h ${minutes}m ${seconds}s`
 }
 
+// Helper to generate candle data from history
+function generateCandles(history: Array<{ price: number; timestamp: number }>, count = 40) {
+  if (history.length < count) return []
+
+  const chunkSize = Math.ceil(history.length / count)
+  const candles = []
+
+  for (let i = 0; i < history.length; i += chunkSize) {
+    const chunk = history.slice(i, i + chunkSize)
+    if (chunk.length === 0) continue
+
+    const open = chunk[0].price
+    const close = chunk[chunk.length - 1].price
+    const high = Math.max(...chunk.map(c => c.price))
+    const low = Math.min(...chunk.map(c => c.price))
+
+    candles.push({
+      open,
+      high,
+      low,
+      close,
+      timestamp: chunk[Math.floor(chunk.length / 2)].timestamp,
+      isGreen: close >= open
+    })
+  }
+
+  return candles
+}
+
 export default function Home() {
   const [price, setPrice] = useState<number>(14.50)
   const [change24h, setChange24h] = useState<number>(0)
@@ -220,6 +249,20 @@ export default function Home() {
     }
   }
 
+  // Fetch live price (fast update)
+  const fetchLivePrice = async () => {
+    try {
+      const res = await fetch('/api/price?type=live')
+      if (res.ok) {
+        const data = await res.json()
+        setPrice(data.price)
+        setChange24h(data.change24h)
+      }
+    } catch (e) {
+      console.error('Live update failed', e)
+    }
+  }
+
   // Fetch leverage data
   const fetchLeverage = async () => {
     try {
@@ -250,14 +293,25 @@ export default function Home() {
   useEffect(() => {
     fetchNews()
     fetchLeverage()
+    const periodMap: Record<string, string> = {
+      '1H': '0.04', '1D': '1', '1W': '7', '1M': '30', '1Y': '365', 'ALL': 'max'
+    }
+
+    // Initial fetch
+    fetchPrice(periodMap[selectedPeriod] || '1')
+
+    // Fast interval for price only (1s)
+    const liveInterval = setInterval(fetchLivePrice, 1000)
+
+    // Slow interval for history/chart (60s)
     const priceInterval = setInterval(() => {
-      const periodMap: Record<string, string> = {
-        '1H': '0.04', '1D': '1', '1W': '7', '1M': '30', '1Y': '365', 'ALL': 'max'
-      }
       fetchPrice(periodMap[selectedPeriod] || '1')
-    }, 10000)
+    }, 60000)
+
     const leverageInterval = setInterval(fetchLeverage, 60000)
+
     return () => {
+      clearInterval(liveInterval)
       clearInterval(priceInterval)
       clearInterval(leverageInterval)
     }
@@ -387,25 +441,65 @@ export default function Home() {
             <line x1="0" y1="0" x2="100" y2="0" stroke="#262626" strokeWidth="0.3" />
             <line x1="0" y1="50" x2="100" y2="50" stroke="#262626" strokeWidth="0.3" />
             <line x1="0" y1="100" x2="100" y2="100" stroke="#262626" strokeWidth="0.3" />
-            {/* Price line with smooth transition */}
-            <path
-              d={chartData.path}
-              fill="none"
-              stroke="#737373"
-              strokeWidth="0.8"
-              vectorEffect="non-scaling-stroke"
-              className={`transition-all duration-700 ease-out ${isChartTransitioning ? 'opacity-30' : 'opacity-100'}`}
-              style={{
-                strokeDasharray: isChartTransitioning ? '1000' : 'none',
-                strokeDashoffset: isChartTransitioning ? '1000' : '0',
-              }}
-            />
+
+            {/* Line Chart */}
+            {chartType === 'line' && (
+              <path
+                d={chartData.path}
+                fill="none"
+                stroke="#737373"
+                strokeWidth="0.8"
+                vectorEffect="non-scaling-stroke"
+                className={`transition-all duration-700 ease-out ${isChartTransitioning ? 'opacity-30' : 'opacity-100'}`}
+                style={{
+                  strokeDasharray: isChartTransitioning ? '1000' : 'none',
+                  strokeDashoffset: isChartTransitioning ? '1000' : '0',
+                }}
+              />
+            )}
+
+            {/* Candle Chart */}
+            {chartType === 'candle' && generateCandles(history).map((candle, i, all) => {
+              const min = chartData.min
+              const range = chartData.max - chartData.min
+              const x = (i / (all.length - 1)) * 100
+              const w = (100 / all.length) * 0.7
+
+              const yHigh = 100 - ((candle.high - min) / range) * 100
+              const yLow = 100 - ((candle.low - min) / range) * 100
+              const yOpen = 100 - ((candle.open - min) / range) * 100
+              const yClose = 100 - ((candle.close - min) / range) * 100
+
+              const yBodyTop = Math.min(yOpen, yClose)
+              const bodyHeight = Math.abs(yClose - yOpen) || 0.5 // Minimal height for doji
+
+              return (
+                <g key={i} className={`transition-opacity duration-500 ${isChartTransitioning ? 'opacity-30' : 'opacity-100'}`}>
+                  {/* Wick */}
+                  <line
+                    x1={x} y1={yHigh} x2={x} y2={yLow}
+                    stroke={candle.isGreen ? '#22c55e' : '#ef4444'}
+                    strokeWidth="0.5"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                  {/* Body */}
+                  <rect
+                    x={x - w / 2}
+                    y={yBodyTop}
+                    width={w}
+                    height={bodyHeight}
+                    fill={candle.isGreen ? '#22c55e' : '#ef4444'}
+                  />
+                </g>
+              )
+            })}
+
           </svg>
           {/* Price labels with animation */}
           <div className={`absolute right-0 top-0 bottom-0 flex flex-col justify-between text-xs text-neutral-600 -mr-10 py-1 transition-opacity duration-500 ${isChartTransitioning ? 'opacity-30' : 'opacity-100'}`}>
-            <span>${chartData.max.toFixed(0)}</span>
-            <span>${chartData.mid.toFixed(0)}</span>
-            <span>${chartData.min.toFixed(0)}</span>
+            <span>${chartData.max.toFixed(2)}</span>
+            <span>${chartData.mid.toFixed(2)}</span>
+            <span>${chartData.min.toFixed(2)}</span>
           </div>
         </div>
 
