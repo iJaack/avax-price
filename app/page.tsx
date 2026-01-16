@@ -31,41 +31,30 @@ function formatTimeAgo(timestamp: number): string {
   return `${hours}h ago`
 }
 
-// Animated rolling digit component
+// Animated rolling digit component - Odometer style
 function RollingDigit({ digit, prevDigit }: { digit: string; prevDigit: string }) {
-  const [isAnimating, setIsAnimating] = useState(false)
-  const [displayDigit, setDisplayDigit] = useState(digit)
-
-  useEffect(() => {
-    if (digit !== prevDigit) {
-      setIsAnimating(true)
-      const timer = setTimeout(() => {
-        setDisplayDigit(digit)
-        setIsAnimating(false)
-      }, 300)
-      return () => clearTimeout(timer)
-    }
-  }, [digit, prevDigit])
-
-  if (digit === '.' || digit === '$') {
+  // If not a number, just render static
+  if (isNaN(parseInt(digit, 10))) {
     return <span className="inline-block">{digit}</span>
   }
 
+  // Vertical strip of numbers 0-9
+  const numbers = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
   return (
-    <span className="inline-block relative overflow-hidden h-[1em]" style={{ width: '0.6em' }}>
+    <span className="inline-block relative overflow-hidden h-[1em]" style={{ width: '0.6em', verticalAlign: 'bottom' }}>
       <span
-        className={`inline-block tabular-nums transition-transform duration-300 ease-out ${isAnimating ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100'
-          }`}
+        className="flex flex-col absolute left-0 right-0 transition-transform duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+        style={{
+          transform: `translateY(-${parseInt(digit, 10) * 10}%)`,
+        }}
       >
-        {displayDigit}
+        {numbers.map((num) => (
+          <span key={num} className="h-[1em] flex items-center justify-center tabular-nums">
+            {num}
+          </span>
+        ))}
       </span>
-      {isAnimating && (
-        <span
-          className="absolute top-full left-0 inline-block tabular-nums transition-transform duration-300 ease-out translate-y-[-100%]"
-        >
-          {digit}
-        </span>
-      )}
     </span>
   )
 }
@@ -365,8 +354,8 @@ export default function Home() {
                 key={type}
                 onClick={() => setChartType(type)}
                 className={`px-2.5 py-1 text-xs rounded transition-all duration-200 capitalize ${chartType === type
-                    ? 'bg-neutral-700 text-white'
-                    : 'text-neutral-500 hover:text-neutral-300'
+                  ? 'bg-neutral-700 text-white'
+                  : 'text-neutral-500 hover:text-neutral-300'
                   }`}
               >
                 {type}
@@ -485,8 +474,8 @@ export default function Home() {
                     key={ex.exchange}
                     onClick={() => setSelectedExchange(idx)}
                     className={`text-sm px-3 py-1 rounded transition-all duration-200 ${selectedExchange === idx
-                        ? 'bg-neutral-700 text-white'
-                        : 'text-neutral-500 hover:text-neutral-300'
+                      ? 'bg-neutral-700 text-white'
+                      : 'text-neutral-500 hover:text-neutral-300'
                       }`}
                   >
                     {ex.exchange}
