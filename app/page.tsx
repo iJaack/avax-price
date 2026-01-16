@@ -211,8 +211,11 @@ export default function Home() {
     try {
       const res = await fetch(`/api/price?days=${days}`)
       const data = await res.json()
-      if (data.price) setPrice(data.price)
-      if (data.change24h !== undefined) setChange24h(data.change24h)
+      // Only update price/change if it's NOT fallback data (prevent overwriting live Binance data with mock 14.50)
+      if (!data.isFallback) {
+        if (data.price) setPrice(data.price)
+        if (data.change24h !== undefined) setChange24h(data.change24h)
+      }
       if (data.marketCap) setMarketCap(data.marketCap)
       if (data.history?.length > 0) {
         setHistory(data.history.map((h: { price: number; timestamp: number }) => ({
