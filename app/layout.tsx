@@ -3,7 +3,7 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: 'AVAX Price | Real-Time Avalanche Price & Predictions',
-  description: 'Track Avalanche (AVAX) price in real-time with market data, charts, and crypto prediction markets from Polymarket.',
+  description: 'Track Avalanche (AVAX) price in real-time with market data, charts, and crypto prediction markets from Kalshi.',
   keywords: ['AVAX', 'Avalanche', 'crypto', 'price', 'predictions', 'Polymarket'],
   openGraph: {
     title: 'AVAX Price',

@@ -8,15 +8,27 @@ interface NewsItem {
   url: string
 }
 
-interface LeverageData {
+interface ExchangeData {
+  exchange: string
   fundingRate: string
   fundingSentiment: string
   openInterestUsd: number
+  oiChange24h: number
   oiSentiment: string
   longShortRatio: string
   positionSentiment: string
   takerRatio: string
   takerSentiment: string
+}
+
+// Helper to format time ago
+function formatTimeAgo(timestamp: number): string {
+  const seconds = Math.floor((Date.now() - timestamp) / 1000)
+  if (seconds < 60) return `${seconds}s ago`
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  return `${hours}h ago`
 }
 
 // Animated rolling digit component
@@ -42,9 +54,8 @@ function RollingDigit({ digit, prevDigit }: { digit: string; prevDigit: string }
   return (
     <span className="inline-block relative overflow-hidden h-[1em]" style={{ width: '0.6em' }}>
       <span
-        className={`inline-block tabular-nums transition-transform duration-300 ease-out ${
-          isAnimating ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100'
-        }`}
+        className={`inline-block tabular-nums transition-transform duration-300 ease-out ${isAnimating ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100'
+          }`}
       >
         {displayDigit}
       </span>
@@ -148,16 +159,23 @@ export default function Home() {
   const [loading, setLoading] = useState(true)
   const [timeLeft, setTimeLeft] = useState(getTimeRemaining())
   const [news, setNews] = useState<NewsItem[]>([])
-  const [leverage, setLeverage] = useState<LeverageData>({
-    fundingRate: '0.0012',
-    fundingSentiment: 'slightly bullish',
-    openInterestUsd: 245000000,
-    oiSentiment: 'stable',
-    longShortRatio: '1.85',
-    positionSentiment: 'heavy longs',
-    takerRatio: '1.12',
-    takerSentiment: 'buyers lead'
-  })
+  const [newsTimestamp, setNewsTimestamp] = useState<number>(Date.now())
+  const [exchanges, setExchanges] = useState<ExchangeData[]>([
+    {
+      exchange: 'Binance',
+      fundingRate: '0.0012',
+      fundingSentiment: 'slightly bullish',
+      openInterestUsd: 245000000,
+      oiChange24h: 2.5,
+      oiSentiment: 'stable',
+      longShortRatio: '1.85',
+      positionSentiment: 'heavy longs',
+      takerRatio: '1.12',
+      takerSentiment: 'buyers lead'
+    }
+  ])
+  const [selectedExchange, setSelectedExchange] = useState(0)
+  const [chartType, setChartType] = useState<'line' | 'candle'>('line')
   const [isChartTransitioning, setIsChartTransitioning] = useState(false)
 
   // Animated values for smooth transitions
@@ -199,6 +217,7 @@ export default function Home() {
       const data = await res.json()
       if (data.news?.length > 0) {
         setNews(data.news.slice(0, 6))
+        setNewsTimestamp(Date.now())
       }
     } catch {
       setNews([
@@ -208,6 +227,7 @@ export default function Home() {
         { title: 'AVAX staking rewards see increased participation', source: 'CryptoSlate', url: 'https://cryptoslate.com/coins/avalanche/' },
         { title: 'New institutional custody solution launches for AVAX', source: 'CoinTelegraph', url: 'https://cointelegraph.com/tags/avalanche' },
       ])
+      setNewsTimestamp(Date.now())
     }
   }
 
@@ -216,16 +236,9 @@ export default function Home() {
     try {
       const res = await fetch('/api/leverage')
       const data = await res.json()
-      setLeverage({
-        fundingRate: data.fundingRate || '0.0012',
-        fundingSentiment: data.fundingSentiment || 'slightly bullish',
-        openInterestUsd: data.openInterestUsd || 245000000,
-        oiSentiment: data.oiSentiment || 'stable',
-        longShortRatio: data.longShortRatio || '1.85',
-        positionSentiment: data.positionSentiment || 'heavy longs',
-        takerRatio: data.takerRatio || '1.12',
-        takerSentiment: data.takerSentiment || 'buyers lead'
-      })
+      if (data.exchanges?.length > 0) {
+        setExchanges(data.exchanges)
+      }
     } catch {
       // Keep default values
     }
@@ -317,7 +330,7 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-black text-white font-sans">
+    <main className="min-h-screen vignette-glow text-white font-sans">
       <div className="max-w-[680px] mx-auto px-6 py-12">
 
         {/* HEADER - AVAX */}
@@ -338,23 +351,39 @@ export default function Home() {
           </div>
         </div>
 
-        {/* MARKET PREDICTION */}
+        {/* MARKET PREDICTION - Dynamic */}
         <div className="text-center text-neutral-500 text-sm mb-10">
-          market predicts: <span className="text-neutral-300">at least $50</span> in 2025 · 45% chance · ${(marketCap / 1e9).toFixed(1)}B backing
+          market predicts: <span className="text-neutral-300">at least ${Math.ceil(animatedPrice * 3)}</span> in 2027 · {Math.round(45 + (animatedChange > 0 ? 5 : -5))}% chance · ${(marketCap / 1e9).toFixed(1)}B backing
         </div>
 
-        {/* TIME SELECTOR */}
-        <div className="flex justify-end mb-2">
+        {/* CHART CONTROLS */}
+        <div className="flex justify-between mb-2">
+          {/* Chart Type Toggle */}
+          <div className="inline-flex bg-neutral-900 rounded p-0.5">
+            {(['line', 'candle'] as const).map(type => (
+              <button
+                key={type}
+                onClick={() => setChartType(type)}
+                className={`px-2.5 py-1 text-xs rounded transition-all duration-200 capitalize ${chartType === type
+                    ? 'bg-neutral-700 text-white'
+                    : 'text-neutral-500 hover:text-neutral-300'
+                  }`}
+              >
+                {type}
+              </button>
+            ))}
+          </div>
+
+          {/* Time Selector */}
           <div className="inline-flex bg-neutral-900 rounded p-0.5">
             {['1H', '1D', '1W', '1M', '1Y', 'ALL'].map(p => (
               <button
                 key={p}
                 onClick={() => handlePeriodChange(p)}
-                className={`px-2.5 py-1 text-xs rounded transition-all duration-200 ${
-                  selectedPeriod === p
-                    ? 'bg-neutral-700 text-white'
-                    : 'text-neutral-500 hover:text-neutral-300'
-                }`}
+                className={`px-2.5 py-1 text-xs rounded transition-all duration-200 ${selectedPeriod === p
+                  ? 'bg-neutral-700 text-white'
+                  : 'text-neutral-500 hover:text-neutral-300'
+                  }`}
               >
                 {p}
               </button>
@@ -448,39 +477,57 @@ export default function Home() {
           <h2 className="text-xs text-neutral-500 font-semibold tracking-wide mb-3">LEVERAGE SENTIMENT</h2>
 
           <div className="bg-neutral-900/60 border border-neutral-800 rounded-xl p-5">
+            {/* Exchange Tabs */}
             <div className="flex justify-between items-center mb-4">
-              <span className="text-sm text-neutral-400">Binance</span>
-              <span className="text-[10px] text-neutral-600">via Binance</span>
+              <div className="flex gap-2">
+                {exchanges.map((ex, idx) => (
+                  <button
+                    key={ex.exchange}
+                    onClick={() => setSelectedExchange(idx)}
+                    className={`text-sm px-3 py-1 rounded transition-all duration-200 ${selectedExchange === idx
+                        ? 'bg-neutral-700 text-white'
+                        : 'text-neutral-500 hover:text-neutral-300'
+                      }`}
+                  >
+                    {ex.exchange}
+                  </button>
+                ))}
+              </div>
+              <span className="text-[10px] text-neutral-600">via {exchanges[selectedExchange]?.exchange || 'Exchange'}</span>
             </div>
 
-            <div className="grid grid-cols-4 gap-3">
-              <div className="bg-neutral-800/50 rounded-lg p-3 text-center">
-                <div className={`text-[11px] font-medium mb-1 transition-colors duration-300 ${leverage.fundingSentiment.includes('bullish') ? 'text-green-500' : leverage.fundingSentiment.includes('bearish') ? 'text-red-500' : 'text-neutral-400'}`}>
-                  {leverage.fundingSentiment}
+            {exchanges[selectedExchange] && (
+              <div className="grid grid-cols-4 gap-3">
+                <div className="bg-neutral-800/50 rounded-lg p-3 text-center">
+                  <div className={`text-[11px] font-medium mb-1 transition-colors duration-300 ${exchanges[selectedExchange].fundingSentiment.includes('bullish') ? 'text-green-500' : exchanges[selectedExchange].fundingSentiment.includes('bearish') ? 'text-red-500' : 'text-neutral-400'}`}>
+                    {exchanges[selectedExchange].fundingSentiment}
+                  </div>
+                  <div className="text-white text-sm font-semibold">{parseFloat(exchanges[selectedExchange].fundingRate) >= 0 ? '+' : ''}{exchanges[selectedExchange].fundingRate}%</div>
+                  <div className="text-[9px] text-neutral-600 mt-1">FUNDING RATE</div>
                 </div>
-                <div className="text-white text-sm font-semibold">+{leverage.fundingRate}%</div>
-                <div className="text-[9px] text-neutral-600 mt-1">FUNDING RATE</div>
-              </div>
-              <div className="bg-neutral-800/50 rounded-lg p-3 text-center">
-                <div className="text-neutral-400 text-[11px] font-medium mb-1">{leverage.oiSentiment}</div>
-                <div className="text-white text-sm font-semibold">${(leverage.openInterestUsd / 1e6).toFixed(0)}M</div>
-                <div className="text-[9px] text-neutral-600 mt-1">OPEN INTEREST</div>
-              </div>
-              <div className="bg-neutral-800/50 rounded-lg p-3 text-center">
-                <div className={`text-[11px] font-medium mb-1 transition-colors duration-300 ${leverage.positionSentiment.includes('long') ? 'text-green-500' : 'text-red-500'}`}>
-                  {leverage.positionSentiment}
+                <div className="bg-neutral-800/50 rounded-lg p-3 text-center">
+                  <div className={`text-[11px] font-medium mb-1 transition-colors duration-300 ${exchanges[selectedExchange].oiChange24h > 2 ? 'text-green-500' : exchanges[selectedExchange].oiChange24h < -2 ? 'text-red-500' : 'text-neutral-400'}`}>
+                    {exchanges[selectedExchange].oiChange24h > 0 ? '+' : ''}{exchanges[selectedExchange].oiChange24h.toFixed(1)}% 24h
+                  </div>
+                  <div className="text-white text-sm font-semibold">${(exchanges[selectedExchange].openInterestUsd / 1e6).toFixed(0)}M</div>
+                  <div className="text-[9px] text-neutral-600 mt-1">OPEN INTEREST</div>
                 </div>
-                <div className="text-white text-sm font-semibold">{leverage.longShortRatio} L/S</div>
-                <div className="text-[9px] text-neutral-600 mt-1">POSITIONING</div>
-              </div>
-              <div className="bg-neutral-800/50 rounded-lg p-3 text-center">
-                <div className={`text-[11px] font-medium mb-1 transition-colors duration-300 ${leverage.takerSentiment.includes('buyers') ? 'text-green-500' : 'text-red-500'}`}>
-                  {leverage.takerSentiment}
+                <div className="bg-neutral-800/50 rounded-lg p-3 text-center">
+                  <div className={`text-[11px] font-medium mb-1 transition-colors duration-300 ${exchanges[selectedExchange].positionSentiment.includes('long') ? 'text-green-500' : 'text-red-500'}`}>
+                    {exchanges[selectedExchange].positionSentiment}
+                  </div>
+                  <div className="text-white text-sm font-semibold">{exchanges[selectedExchange].longShortRatio} L/S</div>
+                  <div className="text-[9px] text-neutral-600 mt-1">POSITIONING</div>
                 </div>
-                <div className="text-white text-sm font-semibold">{leverage.takerRatio}</div>
-                <div className="text-[9px] text-neutral-600 mt-1">TAKER FLOW</div>
+                <div className="bg-neutral-800/50 rounded-lg p-3 text-center">
+                  <div className={`text-[11px] font-medium mb-1 transition-colors duration-300 ${exchanges[selectedExchange].takerSentiment.includes('buyers') ? 'text-green-500' : 'text-red-500'}`}>
+                    {exchanges[selectedExchange].takerSentiment}
+                  </div>
+                  <div className="text-white text-sm font-semibold">{exchanges[selectedExchange].takerRatio}</div>
+                  <div className="text-[9px] text-neutral-600 mt-1">TAKER FLOW</div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
 
@@ -488,7 +535,7 @@ export default function Home() {
         <div className="mb-8">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xs text-neutral-500 font-semibold tracking-wide">AI NEWS SUMMARY</h2>
-            <span className="text-[10px] text-neutral-600">updated 5m ago</span>
+            <span className="text-[10px] text-neutral-600">updated {formatTimeAgo(newsTimestamp)}</span>
           </div>
 
           <div className="space-y-3">
