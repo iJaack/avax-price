@@ -211,11 +211,8 @@ export default function Home() {
     try {
       const res = await fetch(`/api/price?days=${days}`)
       const data = await res.json()
-      // Only update price/change if it's NOT fallback data (prevent overwriting live Binance data with mock 14.50)
-      if (!data.isFallback) {
-        if (data.price) setPrice(data.price)
-        if (data.change24h !== undefined) setChange24h(data.change24h)
-      }
+      // Only update metadata (marketCap, history) from CoinGecko
+      // Price and 24h Change are handled exclusively by Binance (fetchLivePrice) to strictly enforce "one price feed"
       if (data.marketCap) setMarketCap(data.marketCap)
       if (data.history?.length > 0) {
         setHistory(data.history.map((h: { price: number; timestamp: number }) => ({
@@ -300,8 +297,11 @@ export default function Home() {
       '1H': '0.04', '1D': '1', '1W': '7', '1M': '30', '1Y': '365', 'ALL': 'max'
     }
 
-    // Initial fetch
+    // Initial fetch for history
     fetchPrice(periodMap[selectedPeriod] || '1')
+
+    // Immediate fetch for live price
+    fetchLivePrice()
 
     // Fast interval for price only (1s)
     const liveInterval = setInterval(fetchLivePrice, 1000)
