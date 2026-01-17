@@ -141,7 +141,7 @@ function getTimeRemaining(): string {
 
 // Helper to generate candle data from history
 function generateCandles(history: Array<{ price: number; timestamp: number }>, count = 40) {
-  if (history.length < count) return []
+  if (!history || history.length === 0) return []
 
   const chunkSize = Math.ceil(history.length / count)
   const candles = []
@@ -469,8 +469,10 @@ export default function Home() {
             {/* Candle Chart */}
             {chartType === 'candle' && generateCandles(history).map((candle, i, all) => {
               const min = chartData.min
-              const range = chartData.max - chartData.min
-              const x = (i / (all.length - 1)) * 100
+              // Prevent division by zero if min === max
+              const range = (chartData.max - chartData.min) || 1
+              // Prevent division by zero if single candle
+              const x = all.length > 1 ? (i / (all.length - 1)) * 100 : 50
               const w = (100 / all.length) * 0.7
 
               const yHigh = 100 - ((candle.high - min) / range) * 100
