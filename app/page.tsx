@@ -140,10 +140,26 @@ function getTimeRemaining(): string {
 }
 
 // Helper to generate candle data from history
-function generateCandles(history: Array<{ price: number; timestamp: number }>, count = 40) {
+function generateCandles(history: Array<{ price: number; timestamp: number }>, period: string) {
   if (!history || history.length === 0) return []
 
-  const chunkSize = Math.ceil(history.length / count)
+  // Define ideal chunk sizes based on CoinGecko's data granularity
+  // 1H (5m data) -> 1 chunk (5m candles)
+  // 1D (5m data) -> 12 chunks (1h candles)
+  // 1W (1h data) -> 4 chunks (4h candles)
+  // 1M (1h data) -> 24 chunks (1d candles)
+  // 1Y (1d data) -> 7 chunks (1w candles)
+  // ALL (1d data) -> 30 chunks (1mo candles)
+  const chunkMap: Record<string, number> = {
+    '1H': 1,
+    '1D': 12,
+    '1W': 4,
+    '1M': 24,
+    '1Y': 7,
+    'ALL': 30
+  }
+
+  const chunkSize = chunkMap[period] || 1
   const candles = []
 
   for (let i = 0; i < history.length; i += chunkSize) {
@@ -467,13 +483,16 @@ export default function Home() {
             )}
 
             {/* Candle Chart */}
-            {chartType === 'candle' && generateCandles(history).map((candle, i, all) => {
+            {chartType === 'candle' && generateCandles(history, selectedPeriod).map((candle, i, all) => {
               const min = chartData.min
               // Prevent division by zero if min === max
               const range = (chartData.max - chartData.min) || 1
               // Prevent division by zero if single candle
               const x = all.length > 1 ? (i / (all.length - 1)) * 100 : 50
-              const w = (100 / all.length) * 0.7
+
+              // Cap width to prevent massive blocks on short timeframes
+              const calculatedW = (100 / all.length) * 0.7
+              const w = Math.min(calculatedW, 2.5) // Max 2.5% width
 
               const yHigh = 100 - ((candle.high - min) / range) * 100
               const yLow = 100 - ((candle.low - min) / range) * 100
