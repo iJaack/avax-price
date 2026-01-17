@@ -177,8 +177,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true)
   const [timeLeft, setTimeLeft] = useState(getTimeRemaining())
   const [news, setNews] = useState<NewsItem[]>([])
-  // Track last successful live price update to allow fallback if needed
-  const [lastLiveUpdate, setLastLiveUpdate] = useState<number>(0)
+  // No fallback tracking needed for strict mode
   const [newsTimestamp, setNewsTimestamp] = useState<number>(Date.now())
   const [exchanges, setExchanges] = useState<ExchangeData[]>([
     {
@@ -214,15 +213,8 @@ export default function Home() {
       const res = await fetch(`/api/price?days=${days}`)
       const data = await res.json()
       // Only update metadata (marketCap, history) from CoinGecko
-      // Price backup: Only update price if we haven't received a live update in >5 seconds
-      // This ensures we have a fallback if Binance fails, but prefer live data when available
-      const isLiveStale = Date.now() - lastLiveUpdate > 5000
-
-      if (!data.isFallback && isLiveStale) {
-        if (data.price) setPrice(data.price)
-        if (data.change24h !== undefined) setChange24h(data.change24h)
-      }
-
+      // STRICT MODE: Price and 24h Change are handled exclusively by Binance (fetchLivePrice)
+      // We NEVER allow CoinGecko to update the price, even if Binance fails.
       if (data.marketCap) setMarketCap(data.marketCap)
       if (data.history?.length > 0) {
         setHistory(data.history.map((h: { price: number; timestamp: number }) => ({
@@ -265,11 +257,10 @@ export default function Home() {
       const res = await fetch('/api/price?type=live')
       if (res.ok) {
         const data = await res.json()
-        // Improve robustness: Ignore fallback data from live feed too
+        // Strict update from live feed
         if (!data.isFallback) {
           setPrice(data.price)
           setChange24h(data.change24h)
-          setLastLiveUpdate(Date.now())
         }
       }
     } catch (e) {

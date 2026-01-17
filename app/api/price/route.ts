@@ -27,8 +27,9 @@ export async function GET(request: Request) {
           })
         }
       } catch (e) {
-        // Fallback to CoinGecko if Binance fails
+        // STRICT: Fail if Binance fails, do NOT fallback to CoinGecko
         console.error('Binance fetch failed:', e)
+        return new Response('Binance API failed', { status: 502 })
       }
     }
 
