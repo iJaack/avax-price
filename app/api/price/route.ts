@@ -9,10 +9,11 @@ export async function GET(request: Request) {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 8000)
 
-    // Fast live update for price only (Binance API)
+    // Fast live update for price only
     const type = searchParams.get('type')
     if (type === 'live') {
       try {
+        // Primary: Binance
         const binanceRes = await fetch('https://api.binance.com/api/v3/ticker/24hr?symbol=AVAXUSDT', {
           next: { revalidate: 1 },
           signal: controller.signal
@@ -26,10 +27,33 @@ export async function GET(request: Request) {
             timestamp: new Date().toISOString()
           })
         }
+        throw new Error('Binance returned ' + binanceRes.status)
       } catch (e) {
-        // STRICT: Fail if Binance fails, do NOT fallback to CoinGecko
-        console.error('Binance fetch failed:', e)
-        return new Response('Binance API failed', { status: 502 })
+        console.warn('Binance live fetch failed, falling back to CoinGecko:', e)
+
+        // Fallback: CoinGecko
+        try {
+          const cgRes = await fetch(
+            'https://api.coingecko.com/api/v3/simple/price?ids=avalanche-2&vs_currencies=usd&include_24hr_change=true',
+            {
+              cache: 'no-store',
+              signal: controller.signal
+            }
+          )
+
+          if (cgRes.ok) {
+            const data = await cgRes.json()
+            return Response.json({
+              price: data['avalanche-2'].usd,
+              change24h: data['avalanche-2'].usd_24h_change,
+              timestamp: new Date().toISOString()
+            })
+          }
+        } catch (e2) {
+          console.error('CoinGecko fallback failed:', e2)
+        }
+
+        return new Response('All price feeds failed', { status: 502 })
       }
     }
 

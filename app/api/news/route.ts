@@ -6,6 +6,10 @@ export async function GET() {
     const rssFeeds = [
       { url: 'https://cointelegraph.com/rss/tag/avalanche', source: 'CoinTelegraph' },
       { url: 'https://cryptoslate.com/news/avalanche/?feed=rss', source: 'CryptoSlate' },
+      { url: 'https://www.coindesk.com/arc/outboundfeeds/rss/?keyword=avalanche', source: 'CoinDesk' },
+      { url: 'https://www.theblock.co/rss/tag/avalanche', source: 'The Block' },
+      { url: 'https://coinledger.io/feed', source: 'CoinLedger' },
+      { url: 'https://messari.io/rss', source: 'Messari' }
     ]
 
     const newsItems: Array<{ title: string; source: string; url: string; timestamp: number }> = []
@@ -28,7 +32,7 @@ export async function GET() {
         for (const item of items.slice(0, 5)) {
           // Extract title - handle CDATA and plain text
           const titleMatch = item.match(/<title><!\[CDATA\[([\s\S]*?)\]\]><\/title>/i) ||
-                            item.match(/<title>([^<]+)<\/title>/i)
+            item.match(/<title>([^<]+)<\/title>/i)
           const title = titleMatch ? titleMatch[1].trim() : ''
 
           // Extract link - try multiple patterns
