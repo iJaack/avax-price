@@ -570,19 +570,25 @@ export default function Home() {
               )}
 
               {/* Tooltip Box */}
+              {/* Tooltip Box */}
               <div
-                className="absolute top-2 left-2 bg-neutral-900/90 border border-neutral-800 rounded p-2 text-xs pointer-events-none z-30 tabular-nums shadow-xl backdrop-blur-sm"
+                className="absolute bg-neutral-900/90 border border-neutral-800 rounded p-2 text-xs pointer-events-none z-30 tabular-nums shadow-xl backdrop-blur-sm whitespace-nowrap"
+                style={{
+                  left: `${hoverData.x}%`,
+                  top: `${hoverData.y}%`,
+                  transform: `translate(${hoverData.x > 50 ? 'calc(-100% - 15px)' : '15px'}, -50%)`
+                }}
               >
-                <div className="text-neutral-400">
+                <div className="text-neutral-400 mb-0.5">
                   {new Date(hoverData.timestamp).toLocaleString(undefined, {
                     month: 'short',
                     day: 'numeric',
                     hour: 'numeric',
-                    minute: 'numeric'
+                    minute: '2-digit'
                   })}
                 </div>
-                <div className="text-white font-medium">
-                  ${hoverData.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                <div className="text-white font-medium text-sm">
+                  ${hoverData.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
               </div>
             </>
