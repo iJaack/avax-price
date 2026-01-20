@@ -173,6 +173,10 @@ function generateCandles(history: Array<{ price: number; timestamp: number }>) {
 export default function Home() {
   // Initialize as null to avoid "default" fake price
   const [price, setPrice] = useState<number | null>(null)
+
+  // Track last successful update for watchdog
+  const [lastUpdate, setLastUpdate] = useState<number>(Date.now())
+
   const [change24h, setChange24h] = useState<number>(0)
   const [marketCap, setMarketCap] = useState<number>(0)
   const [history, setHistory] = useState<Array<{ price: number; timestamp: number }>>([])
@@ -218,6 +222,19 @@ export default function Home() {
     const timer = setInterval(() => setTimeLeft(getTimeRemaining()), 1000)
     return () => clearInterval(timer)
   }, [])
+
+  // Watchdog: Reload if data is stale (> 10 seconds)
+  useEffect(() => {
+    const watchdog = setInterval(() => {
+      const timeSinceUpdate = Date.now() - lastUpdate
+      if (timeSinceUpdate > 10000) {
+        console.warn('Data stale, reloading page...')
+        window.location.reload()
+      }
+    }, 2000) // Check every 2 seconds
+
+    return () => clearInterval(watchdog)
+  }, [lastUpdate])
 
   // Fetch price
   const fetchPrice = useCallback(async (days: string = '1') => {
@@ -266,13 +283,15 @@ export default function Home() {
   // Fetch live price (fast update)
   const fetchLivePrice = async () => {
     try {
-      const res = await fetch('/api/price?type=live')
+      // Cache busting with timestamp
+      const res = await fetch(`/api/price?type=live&t=${Date.now()}`)
       if (res.ok) {
         const data = await res.json()
         // Strict update from live feed
         if (!data.isFallback) {
           setPrice(data.price)
           setChange24h(data.change24h)
+          setLastUpdate(Date.now()) // Update heartbeat
         }
       }
     } catch (e) {
