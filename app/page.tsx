@@ -223,15 +223,15 @@ export default function Home() {
     return () => clearInterval(timer)
   }, [])
 
-  // Watchdog: Reload if data is stale (> 10 seconds)
+  // Watchdog: Log if data is stale (> 10 seconds), but don't force reload
   useEffect(() => {
     const watchdog = setInterval(() => {
       const timeSinceUpdate = Date.now() - lastUpdate
       if (timeSinceUpdate > 10000) {
-        console.warn('Data stale, reloading page...')
-        window.location.reload()
+        console.warn('Data is stale (10s+), retrying...')
+        // We rely on the fetch interval to recover
       }
-    }, 2000) // Check every 2 seconds
+    }, 2000)
 
     return () => clearInterval(watchdog)
   }, [lastUpdate])
@@ -239,7 +239,7 @@ export default function Home() {
   // Fetch price
   const fetchPrice = useCallback(async (days: string = '1') => {
     try {
-      const res = await fetch(`/api/price?days=${days}`)
+      const res = await fetch(`/api/price?days=${days}&t=${Date.now()}`)
       const data = await res.json()
       // Only update metadata (marketCap, history) from CoinGecko
       // STRICT MODE: Price and 24h Change are handled exclusively by Binance (fetchLivePrice)
@@ -282,9 +282,16 @@ export default function Home() {
 
   // Fetch live price (fast update)
   const fetchLivePrice = async () => {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 5000) // 5s timeout
+
     try {
       // Cache busting with timestamp
-      const res = await fetch(`/api/price?type=live&t=${Date.now()}`)
+      const res = await fetch(`/api/price?type=live&t=${Date.now()}`, {
+        signal: controller.signal
+      })
+      clearTimeout(timeout)
+
       if (res.ok) {
         const data = await res.json()
         // Strict update from live feed
