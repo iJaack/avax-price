@@ -61,7 +61,12 @@ export async function GET() {
           const dateMatch = item.match(/<pubDate>([^<]+)<\/pubDate>/i)
           const timestamp = dateMatch ? new Date(dateMatch[1]).getTime() : Date.now()
 
-          if (title && link !== '#') {
+          // Strict filtering: Content MUST contain specific keywords
+          // This is essential for generic feeds like CoinLedger/Messari that don't allow RSS filtering
+          const fullText = (title + (item.match(/<description>([\s\S]*?)<\/description>/)?.[1] || '')).toLowerCase()
+          const isRelevant = fullText.includes('avalanche') || fullText.includes('avax')
+
+          if (isRelevant && title && link !== '#') {
             newsItems.push({
               title: title.substring(0, 120),
               source: feed.source,
