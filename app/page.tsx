@@ -171,215 +171,27 @@ function generateCandles(history: Array<{ price: number; timestamp: number }>) {
 }
 
 export default function Home() {
-  const [price, setPrice] = useState<number>(14.50)
-  const [change24h, setChange24h] = useState<number>(0)
-  const [marketCap, setMarketCap] = useState<number>(0)
-  const [history, setHistory] = useState<Array<{ price: number; timestamp: number }>>([])
-  const [selectedPeriod, setSelectedPeriod] = useState('1D')
-  const [loading, setLoading] = useState(true)
-  const [timeLeft, setTimeLeft] = useState(getTimeRemaining())
-  const [news, setNews] = useState<NewsItem[]>([])
-  // No fallback tracking needed for strict mode
-  const [newsTimestamp, setNewsTimestamp] = useState<number>(Date.now())
-  const [exchanges, setExchanges] = useState<ExchangeData[]>([
-    {
-      exchange: 'Binance',
-      fundingRate: '0.0012',
-      fundingSentiment: 'slightly bullish',
-      openInterestUsd: 245000000,
-      oiChange24h: 2.5,
-      oiSentiment: 'stable',
-      longShortRatio: '1.85',
-      positionSentiment: 'heavy longs',
-      takerRatio: '1.12',
-      takerSentiment: 'buyers lead'
-    }
-  ])
-  const [selectedExchange, setSelectedExchange] = useState(0)
-  const [chartType, setChartType] = useState<'line' | 'candle'>('line')
-  const [isChartTransitioning, setIsChartTransitioning] = useState(false)
-  const [hoverData, setHoverData] = useState<{
-    price: number
-    timestamp: number
-    x: number
-    y: number
-    visible: boolean
-  } | null>(null)
+  // Initialize as null to avoid "default" fake price
+  const [price, setPrice] = useState<number | null>(null)
+
+  // ... existing code ...
 
   // Animated values for smooth transitions
-  const animatedPrice = useAnimatedValue(price, 600)
+  const animatedPrice = useAnimatedValue(price || 0, 600)
   const animatedChange = useAnimatedValue(change24h, 600)
 
-  // Timer for countdown
-  useEffect(() => {
-    const timer = setInterval(() => setTimeLeft(getTimeRemaining()), 1000)
-    return () => clearInterval(timer)
-  }, [])
-
-  // Fetch price
-  const fetchPrice = useCallback(async (days: string = '1') => {
-    try {
-      const res = await fetch(`/api/price?days=${days}`)
-      const data = await res.json()
-      // Only update metadata (marketCap, history) from CoinGecko
-      // STRICT MODE: Price and 24h Change are handled exclusively by Binance (fetchLivePrice)
-      // We NEVER allow CoinGecko to update the price, even if Binance fails.
-      if (data.marketCap) setMarketCap(data.marketCap)
-      if (data.history?.length > 0) {
-        setHistory(data.history.map((h: { price: number; timestamp: number }) => ({
-          price: h.price,
-          timestamp: h.timestamp
-        })))
-      }
-    } catch (err) {
-      console.error('Price fetch error:', err)
-    } finally {
-      setLoading(false)
-      setIsChartTransitioning(false)
-    }
-  }, [])
-
-  // Fetch news
-  const fetchNews = async () => {
-    try {
-      const res = await fetch(`/api/news?t=${Date.now()}`)
-      const data = await res.json()
-      if (data.news?.length > 0) {
-        setNews(data.news.slice(0, 6))
-        setNewsTimestamp(Date.now())
-      }
-    } catch {
-      setNews([
-        { title: 'AVAX subnet activity reaches new highs with gaming integrations', source: 'CoinDesk', url: 'https://www.coindesk.com/search?q=avalanche' },
-        { title: 'Avalanche Foundation launches ecosystem growth initiative', source: 'The Block', url: 'https://www.theblock.co/search?query=avalanche' },
-        { title: 'Major DeFi protocol announces Avalanche expansion', source: 'Decrypt', url: 'https://decrypt.co/search?query=avalanche' },
-        { title: 'AVAX staking rewards see increased participation', source: 'CryptoSlate', url: 'https://cryptoslate.com/coins/avalanche/' },
-        { title: 'New institutional custody solution launches for AVAX', source: 'CoinTelegraph', url: 'https://cointelegraph.com/tags/avalanche' },
-      ])
-      setNewsTimestamp(Date.now())
-    }
-  }
-
-  // Fetch live price (fast update)
-  const fetchLivePrice = async () => {
-    try {
-      const res = await fetch('/api/price?type=live')
-      if (res.ok) {
-        const data = await res.json()
-        // Strict update from live feed
-        if (!data.isFallback) {
-          setPrice(data.price)
-          setChange24h(data.change24h)
-        }
-      }
-    } catch (e) {
-      console.error('Live update failed', e)
-    }
-  }
-
-  // Fetch leverage data
-  const fetchLeverage = async () => {
-    try {
-      const res = await fetch('/api/leverage')
-      const data = await res.json()
-      if (data.exchanges?.length > 0) {
-        setExchanges(data.exchanges)
-      }
-    } catch {
-      // Keep default values
-    }
-  }
-
-  // Handle period change with transition
-  const handlePeriodChange = (period: string) => {
-    if (period === selectedPeriod) return
-    setIsChartTransitioning(true)
-    setSelectedPeriod(period)
-  }
-
-  useEffect(() => {
-    const periodMap: Record<string, string> = {
-      '1H': '0.04', '1D': '1', '1W': '7', '1M': '30', '1Y': '365', 'ALL': 'max'
-    }
-    fetchPrice(periodMap[selectedPeriod] || '1')
-  }, [selectedPeriod, fetchPrice])
-
-  useEffect(() => {
-    fetchNews()
-    fetchLeverage()
-    const periodMap: Record<string, string> = {
-      '1H': '0.04', '1D': '1', '1W': '7', '1M': '30', '1Y': '365', 'ALL': 'max'
-    }
-
-    // Initial fetch for history
-    fetchPrice(periodMap[selectedPeriod] || '1')
-
-    // Immediate fetch for live price
-    fetchLivePrice()
-
-    // Fast interval for price only (1s)
-    const liveInterval = setInterval(fetchLivePrice, 1000)
-
-    // Slow interval for history/chart (60s)
-    const priceInterval = setInterval(() => {
-      fetchPrice(periodMap[selectedPeriod] || '1')
-    }, 60000)
-
-    const leverageInterval = setInterval(fetchLeverage, 60000)
-    const newsInterval = setInterval(fetchNews, 60000)
-
-    return () => {
-      clearInterval(liveInterval)
-      clearInterval(priceInterval)
-      clearInterval(leverageInterval)
-      clearInterval(newsInterval)
-    }
-  }, [selectedPeriod, fetchPrice])
-
-  // Chart calculations with smooth path
-  const chartData = useMemo(() => {
-    if (!history.length) return { path: '', min: 0, max: 0, mid: 0 }
-    const prices = history.map(h => h.price)
-    const min = Math.min(...prices)
-    const max = Math.max(...prices)
-    const mid = (min + max) / 2
-    const range = max - min || 1
-
-    // Create smooth SVG path using cubic bezier curves
-    const points = history.map((h, i) => ({
-      x: (i / (history.length - 1)) * 100,
-      y: 100 - ((h.price - min) / range) * 100
-    }))
-
-    if (points.length < 2) return { path: '', min, max, mid }
-
-    // Start path
-    let path = `M ${points[0].x},${points[0].y}`
-
-    // Use quadratic curves for smoother lines
-    for (let i = 1; i < points.length; i++) {
-      const prev = points[i - 1]
-      const curr = points[i]
-      const cpx = (prev.x + curr.x) / 2
-      path += ` Q ${prev.x},${prev.y} ${cpx},${(prev.y + curr.y) / 2}`
-    }
-
-    // Final point
-    const last = points[points.length - 1]
-    path += ` L ${last.x},${last.y}`
-
-    return { path, min, max, mid }
-  }, [history])
+  // ... existing code ...
 
   // Dynamic predictions based on price
   const predictions = useMemo(() => {
+    if (!price) return []
     const base = Math.ceil(animatedPrice)
     return [
       { label: `${base + 2} or above`, yes: 25, no: 75 },
       { label: `${base + 1} or above`, yes: 38, no: 62 },
       { label: `${base} or above`, yes: 52, no: 48 },
     ]
-  }, [animatedPrice])
+  }, [animatedPrice, price])
 
   const isPositive = animatedChange >= 0
 
@@ -403,19 +215,31 @@ export default function Home() {
         {/* PRICE - Animated */}
         <div className="text-center mb-1">
           <div className="inline-flex items-baseline">
-            <span className="text-white text-7xl font-extralight tracking-tight">
-              <span className="text-5xl">$</span>
-              <AnimatedPrice price={animatedPrice} />
-            </span>
-            <span className={`ml-4 text-xl transition-colors duration-300 ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
-              {isPositive ? '▲' : '▼'} {Math.abs(animatedChange).toFixed(2)}%
-            </span>
+            {price ? (
+              <>
+                <span className="text-white text-7xl font-extralight tracking-tight">
+                  <span className="text-5xl">$</span>
+                  <AnimatedPrice price={animatedPrice} />
+                </span>
+                <span className={`ml-4 text-xl transition-colors duration-300 ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
+                  {isPositive ? '▲' : '▼'} {Math.abs(animatedChange).toFixed(2)}%
+                </span>
+              </>
+            ) : (
+              <span className="text-white text-7xl font-extralight tracking-tight animate-pulse">
+                ---
+              </span>
+            )}
           </div>
         </div>
 
         {/* MARKET PREDICTION - Dynamic */}
-        <div className="text-center text-neutral-500 text-sm mb-10">
-          market predicts: <span className="text-neutral-300">at least ${Math.ceil(animatedPrice * 3)}</span> in 2027 · {Math.round(45 + (animatedChange > 0 ? 5 : -5))}% chance · ${(marketCap / 1e9).toFixed(1)}B backing
+        <div className="text-center text-neutral-500 text-sm mb-10 h-6">
+          {price && (
+            <>
+              market predicts: <span className="text-neutral-300">at least ${Math.ceil(animatedPrice * 3)}</span> in 2027 · {Math.round(45 + (animatedChange > 0 ? 5 : -5))}% chance · ${(marketCap / 1e9).toFixed(1)}B backing
+            </>
+          )}
         </div>
 
         {/* CHART CONTROLS */}
