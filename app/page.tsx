@@ -140,43 +140,29 @@ function getTimeRemaining(): string {
 }
 
 // Helper to generate candle data from history
-function generateCandles(history: Array<{ price: number; timestamp: number }>, period: string) {
-  if (!history || history.length === 0) return []
+function generateCandles(history: Array<{ price: number; timestamp: number }>) {
+  if (!history || history.length < 2) return []
 
-  // Define ideal chunk sizes based on CoinGecko's data granularity
-  // 1H (5m data) -> 1 chunk (5m candles)
-  // 1D (5m data) -> 12 chunks (1h candles)
-  // 1W (1h data) -> 4 chunks (4h candles)
-  // 1M (1h data) -> 24 chunks (1d candles)
-  // 1Y (1d data) -> 7 chunks (1w candles)
-  // ALL (1d data) -> 30 chunks (1mo candles)
-  const chunkMap: Record<string, number> = {
-    '1H': 1,
-    '1D': 12,
-    '1W': 4,
-    '1M': 24,
-    '1Y': 7,
-    'ALL': 30
-  }
-
-  const chunkSize = chunkMap[period] || 1
   const candles = []
 
-  for (let i = 0; i < history.length; i += chunkSize) {
-    const chunk = history.slice(i, i + chunkSize)
-    if (chunk.length === 0) continue
+  // Generate ticks based on movement from previous point
+  // Candle[i] represents the move from Point[i-1] to Point[i]
+  for (let i = 1; i < history.length; i++) {
+    const prev = history[i - 1]
+    const curr = history[i]
 
-    const open = chunk[0].price
-    const close = chunk[chunk.length - 1].price
-    const high = Math.max(...chunk.map(c => c.price))
-    const low = Math.min(...chunk.map(c => c.price))
+    const open = prev.price
+    const close = curr.price
+    // Since we only have two points, High/Low are just Max/Min of (Open, Close)
+    const high = Math.max(open, close)
+    const low = Math.min(open, close)
 
     candles.push({
       open,
       high,
       low,
       close,
-      timestamp: chunk[Math.floor(chunk.length / 2)].timestamp,
+      timestamp: curr.timestamp,
       isGreen: close >= open
     })
   }
@@ -212,6 +198,13 @@ export default function Home() {
   const [selectedExchange, setSelectedExchange] = useState(0)
   const [chartType, setChartType] = useState<'line' | 'candle'>('line')
   const [isChartTransitioning, setIsChartTransitioning] = useState(false)
+  const [hoverData, setHoverData] = useState<{
+    price: number
+    timestamp: number
+    x: number
+    y: number
+    visible: boolean
+  } | null>(null)
 
   // Animated values for smooth transitions
   const animatedPrice = useAnimatedValue(price, 600)
@@ -249,7 +242,7 @@ export default function Home() {
   // Fetch news
   const fetchNews = async () => {
     try {
-      const res = await fetch('/api/news')
+      const res = await fetch(`/api/news?t=${Date.now()}`)
       const data = await res.json()
       if (data.news?.length > 0) {
         setNews(data.news.slice(0, 6))
@@ -333,11 +326,13 @@ export default function Home() {
     }, 60000)
 
     const leverageInterval = setInterval(fetchLeverage, 60000)
+    const newsInterval = setInterval(fetchNews, 60000)
 
     return () => {
       clearInterval(liveInterval)
       clearInterval(priceInterval)
       clearInterval(leverageInterval)
+      clearInterval(newsInterval)
     }
   }, [selectedPeriod, fetchPrice])
 
@@ -482,13 +477,45 @@ export default function Home() {
               />
             )}
 
+            {/* Hover Trap */}
+            <div
+              className="absolute inset-0 z-20 cursor-crosshair touch-none"
+              onMouseMove={(e) => {
+                if (!history.length) return
+                const rect = e.currentTarget.getBoundingClientRect()
+                const x = e.clientX - rect.left
+                const width = rect.width
+                const index = Math.min(
+                  Math.max(0, Math.floor((x / width) * history.length)),
+                  history.length - 1
+                )
+                const point = history[index]
+                if (!point) return
+
+                const min = chartData.min
+                const range = (chartData.max - chartData.min) || 1
+                const yPos = 100 - ((point.price - min) / range) * 100
+
+                setHoverData({
+                  price: point.price,
+                  timestamp: point.timestamp,
+                  x: (index / (history.length - 1)) * 100,
+                  y: yPos,
+                  visible: true
+                })
+              }}
+              onMouseLeave={() => setHoverData(null)}
+            />
+
             {/* Candle Chart */}
-            {chartType === 'candle' && generateCandles(history, selectedPeriod).map((candle, i, all) => {
+            {chartType === 'candle' && generateCandles(history).map((candle, i, all) => {
               const min = chartData.min
               // Prevent division by zero if min === max
               const range = (chartData.max - chartData.min) || 1
-              // Prevent division by zero if single candle
-              const x = all.length > 1 ? (i / (all.length - 1)) * 100 : 50
+
+              // Align strictly with history points (Candle i = History i+1)
+              const historyIndex = i + 1
+              const x = (historyIndex / (history.length - 1)) * 100
 
               // Cap width to prevent massive blocks on short timeframes
               const calculatedW = (100 / all.length) * 0.7
@@ -524,6 +551,43 @@ export default function Home() {
             })}
 
           </svg>
+
+          {/* Tooltip Overlay */}
+          {hoverData && hoverData.visible && (
+            <>
+              {/* Vertical Line */}
+              <div
+                className="absolute top-0 bottom-0 w-px bg-neutral-700/50 pointer-events-none"
+                style={{ left: `${hoverData.x}%` }}
+              />
+
+              {/* Dot on Line (only if line chart) */}
+              {chartType === 'line' && (
+                <div
+                  className="absolute w-2 h-2 bg-white rounded-full -ml-1 -mt-1 pointer-events-none shadow-[0_0_10px_rgba(255,255,255,0.5)] z-30"
+                  style={{ left: `${hoverData.x}%`, top: `${hoverData.y}%` }}
+                />
+              )}
+
+              {/* Tooltip Box */}
+              <div
+                className="absolute top-2 left-2 bg-neutral-900/90 border border-neutral-800 rounded p-2 text-xs pointer-events-none z-30 tabular-nums shadow-xl backdrop-blur-sm"
+              >
+                <div className="text-neutral-400">
+                  {new Date(hoverData.timestamp).toLocaleString(undefined, {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: 'numeric'
+                  })}
+                </div>
+                <div className="text-white font-medium">
+                  ${hoverData.price.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </div>
+              </div>
+            </>
+          )}
+
           {/* Price labels with animation */}
           <div className={`absolute right-0 top-0 bottom-0 flex flex-col justify-between text-xs text-neutral-600 -mr-10 py-1 transition-opacity duration-500 ${isChartTransitioning ? 'opacity-30' : 'opacity-100'}`}>
             <span>${chartData.max.toFixed(2)}</span>
