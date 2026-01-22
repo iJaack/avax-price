@@ -25,6 +25,9 @@ async function fetchBinanceData(): Promise<ExchangeData> {
       fetch(`https://fapi.binance.com/fapi/v1/ticker/price?symbol=${symbol}`, { cache: 'no-store', headers: { 'User-Agent': 'Mozilla/5.0' } })
     ])
 
+    if (!fundingRes.ok) throw new Error(`Funding API: ${fundingRes.status} ${fundingRes.statusText}`)
+    if (!priceRes.ok) throw new Error(`Price API: ${priceRes.status} ${priceRes.statusText}`)
+
     let fundingRate = 0.0001
     let openInterest = 0
     let longShortRatio = 1.0
@@ -68,8 +71,8 @@ async function fetchBinanceData(): Promise<ExchangeData> {
       takerRatio: takerRatio.toFixed(2),
       takerSentiment: takerRatio > 1 ? 'buyers lead' : 'sellers lead'
     }
-  } catch {
-    return getDefaultData('Binance')
+  } catch (e: any) {
+    return getDefaultData('Binance', e.message || String(e))
   }
 }
 
@@ -81,6 +84,8 @@ async function fetchBybitData(): Promise<ExchangeData> {
       fetch(`https://api.bybit.com/v5/market/tickers?category=linear&symbol=${symbol}`, { cache: 'no-store', headers: { 'User-Agent': 'Mozilla/5.0' } }),
       fetch(`https://api.bybit.com/v5/market/open-interest?category=linear&symbol=${symbol}&intervalTime=1h&limit=2`, { cache: 'no-store', headers: { 'User-Agent': 'Mozilla/5.0' } })
     ])
+
+    if (!tickerRes.ok) throw new Error(`Bybit Ticker: ${tickerRes.status}`)
 
     let fundingRate = 0.0001
     let openInterest = 0
@@ -122,12 +127,12 @@ async function fetchBybitData(): Promise<ExchangeData> {
       takerRatio: '1.00',
       takerSentiment: 'balanced'
     }
-  } catch {
-    return getDefaultData('Bybit')
+  } catch (e: any) {
+    return getDefaultData('Bybit', e.message || String(e))
   }
 }
 
-function getDefaultData(exchange: string): ExchangeData {
+function getDefaultData(exchange: string, error?: string): ExchangeData {
   return {
     exchange,
     fundingRate: '0.0012',
@@ -138,7 +143,10 @@ function getDefaultData(exchange: string): ExchangeData {
     longShortRatio: '1.85',
     positionSentiment: 'heavy longs',
     takerRatio: '1.12',
-    takerSentiment: 'buyers lead'
+    takerSentiment: 'buyers lead',
+    // @ts-ignore
+    _isFallback: true,
+    _error: error
   }
 }
 
