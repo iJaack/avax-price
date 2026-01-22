@@ -158,7 +158,8 @@ export async function GET() {
     return Response.json({
       exchanges: [getDefaultData('Binance'), getDefaultData('Bybit')],
       timestamp: new Date().toISOString(),
-      isFallback: true
+      isFallback: true,
+      error: error instanceof Error ? error.message : String(error)
     })
   }
 }

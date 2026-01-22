@@ -19,6 +19,8 @@ interface ExchangeData {
   positionSentiment: string
   takerRatio: string
   takerSentiment: string
+  _isFallback?: boolean
+  _error?: string
 }
 
 // Helper to format time ago
@@ -311,7 +313,16 @@ export default function Home() {
     try {
       const res = await fetch(`/api/leverage?t=${Date.now()}`)
       const data = await res.json()
-      if (data.exchanges?.length > 0) {
+      if (data.isFallback) {
+        console.warn('Leverage API in fallback mode:', data.error)
+        // Mark exchanges as fallback for UI
+        const fallbackExchanges = data.exchanges.map((ex: any) => ({
+          ...ex,
+          _isFallback: true,
+          _error: data.error
+        }))
+        setExchanges(fallbackExchanges)
+      } else {
         setExchanges(data.exchanges)
       }
     } catch {
@@ -717,7 +728,15 @@ export default function Home() {
                   </button>
                 ))}
               </div>
-              <span className="text-[10px] text-neutral-600">via {exchanges[selectedExchange]?.exchange || 'Exchange'}</span>
+              <span className="text-[10px] text-neutral-600 flex items-center gap-1">
+                via {exchanges[selectedExchange]?.exchange || 'Exchange'}
+                {/* @ts-ignore */}
+                {exchanges[selectedExchange]?._isFallback && (
+                  <span className="text-red-500 cursor-help" title={`Data fetch failed. Showing default values.\nError: ${exchanges[selectedExchange]?._error || 'Unknown'}`}>
+                    (!)
+                  </span>
+                )}
+              </span>
             </div>
 
             {exchanges[selectedExchange] && (
