@@ -313,17 +313,22 @@ export default function Home() {
     try {
       const res = await fetch(`/api/leverage?t=${Date.now()}`)
       const data = await res.json()
-      if (data.isFallback) {
-        console.warn('Leverage API in fallback mode:', data.error)
-        // Mark exchanges as fallback for UI
-        const fallbackExchanges = data.exchanges.map((ex: any) => ({
-          ...ex,
-          _isFallback: true,
-          _error: data.error
-        }))
-        setExchanges(fallbackExchanges)
-      } else {
+      if (data.exchanges?.length > 0) {
         setExchanges(data.exchanges)
+
+        // Auto-select the first working exchange if current one is fallback
+        // Or if we are just initializing (selectedExchange is 0)
+        const firstWorkingIndex = data.exchanges.findIndex((ex: any) => !ex._isFallback)
+        if (firstWorkingIndex !== -1 && (data.exchanges[selectedExchange]?._isFallback || selectedExchange === 0)) {
+          // Only switch if the current selection is broken or we are default
+          // Correction: Always switch to working one if current is broken is good UX.
+          // However, if user manually selected broken one, maybe we shouldn't? 
+          // But here we are fetching fresh. 
+          // Let's safe switch: if currently selected is broken, switch to first working.
+          if (data.exchanges[selectedExchange]?._isFallback) {
+            setSelectedExchange(firstWorkingIndex)
+          }
+        }
       }
     } catch {
       // Keep default values

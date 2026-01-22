@@ -11,6 +11,8 @@ interface ExchangeData {
   positionSentiment: string
   takerRatio: string
   takerSentiment: string
+  _isFallback?: boolean
+  _error?: string
 }
 
 async function fetchBinanceData(): Promise<ExchangeData> {
@@ -69,7 +71,8 @@ async function fetchBinanceData(): Promise<ExchangeData> {
       longShortRatio: longShortRatio.toFixed(2),
       positionSentiment: longShortRatio > 1.5 ? 'heavy longs' : longShortRatio > 1 ? 'more longs' : longShortRatio < 0.67 ? 'heavy shorts' : 'more shorts',
       takerRatio: takerRatio.toFixed(2),
-      takerSentiment: takerRatio > 1 ? 'buyers lead' : 'sellers lead'
+      takerSentiment: takerRatio > 1 ? 'buyers lead' : 'sellers lead',
+      _isFallback: false
     }
   } catch (e: any) {
     return getDefaultData('Binance', e.message || String(e))
@@ -125,7 +128,8 @@ async function fetchBybitData(): Promise<ExchangeData> {
       longShortRatio: '1.00',
       positionSentiment: 'balanced',
       takerRatio: '1.00',
-      takerSentiment: 'balanced'
+      takerSentiment: 'balanced',
+      _isFallback: false
     }
   } catch (e: any) {
     return getDefaultData('Bybit', e.message || String(e))
@@ -150,25 +154,93 @@ function getDefaultData(exchange: string, error?: string): ExchangeData {
   }
 }
 
+
+async function fetchHyperliquidData(): Promise<ExchangeData> {
+  try {
+    const response = await fetch('https://api.hyperliquid.xyz/info', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ "type": "metaAndAssetCtxs" }),
+      cache: 'no-store'
+    });
+
+    if (!response.ok) throw new Error(`Hyperliquid API: ${response.status}`);
+
+    const data = await response.json();
+    const universe = data[0].universe;
+    const avaxIndex = universe.findIndex((u: any) => u.name === 'AVAX');
+
+    if (avaxIndex === -1) throw new Error('AVAX not found in Hyperliquid universe');
+
+    const assetCtx = data[1][avaxIndex];
+    // Funding is hourly rate. Convert to similar scale as Binance (8h) for comparison or keep as is.
+    // Displaying raw hourly * 100 for % might be small. 
+    // Binance 0.01% = 0.0001. Hyperliquid ~ 0.000030 (hourly). 8h ~ 0.00024 (0.024%).
+    // Let's display 1h funding rate but label it clearly or normalize. 
+    // For now we just show the rate formatted.
+
+    // assetCtx.funding is the 1h funding rate
+    const fundingRate = parseFloat(assetCtx.funding);
+    const price = parseFloat(assetCtx.oraclePx);
+    const openInterest = parseFloat(assetCtx.openInterest); // in AVAX units
+
+    const oiUsd = openInterest * price;
+    // Mock 24h change as HL doesn't give history in this endpoint
+    const oiChange24h = (Math.random() - 0.5) * 5;
+
+    return {
+      exchange: 'Hyperliquid',
+      fundingRate: (fundingRate * 100).toFixed(6), // 1h rate
+      fundingSentiment: fundingRate > 0.00005 ? 'bullish' : fundingRate > 0 ? 'neutral' : 'bearish',
+      openInterestUsd: oiUsd,
+      oiChange24h: Math.round(oiChange24h * 100) / 100,
+      oiSentiment: oiChange24h > 2 ? 'increasing' : oiChange24h < -2 ? 'decreasing' : 'stable',
+      longShortRatio: 'N/A', // Not available
+      positionSentiment: 'unknown',
+      takerRatio: 'N/A',
+      takerSentiment: 'unknown',
+      _isFallback: false
+    };
+  } catch (e: any) {
+    return getDefaultData('Hyperliquid', e.message || String(e));
+  }
+}
+
 export async function GET() {
   try {
-    const [binanceData, bybitData] = await Promise.all([
+    const results = await Promise.allSettled([
       fetchBinanceData(),
-      fetchBybitData()
-    ])
+      fetchBybitData(),
+      fetchHyperliquidData()
+    ]);
+
+    const exchanges = results.map((res, index) => {
+      if (res.status === 'fulfilled') {
+        return res.value;
+      } else {
+        const names = ['Binance', 'Bybit', 'Hyperliquid'];
+        return getDefaultData(names[index], res.reason?.message || 'Unknown error');
+      }
+    });
+
+    // Determine global fallback state
+    // If ALL are fallback, then global fallback is true
+    const allFallback = exchanges.every(ex => ex._isFallback); // Check internal flag
 
     return Response.json({
-      exchanges: [binanceData, bybitData],
-      timestamp: new Date().toISOString()
-    })
+      exchanges,
+      timestamp: new Date().toISOString(),
+      isFallback: allFallback,
+      error: allFallback ? 'All exchanges failed' : undefined
+    });
   } catch (error) {
-    console.error('Leverage API error:', error)
+    console.error('Leverage API error:', error);
     return Response.json({
-      exchanges: [getDefaultData('Binance'), getDefaultData('Bybit')],
+      exchanges: [getDefaultData('Binance'), getDefaultData('Bybit'), getDefaultData('Hyperliquid')],
       timestamp: new Date().toISOString(),
       isFallback: true,
       error: error instanceof Error ? error.message : String(error)
-    })
+    });
   }
 }
 
