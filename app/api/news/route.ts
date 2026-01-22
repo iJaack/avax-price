@@ -71,12 +71,39 @@ export async function GET() {
           // Google News is already filtered by query, so we trust it more
           const isRelevant = isGoogle || fullText.includes('avalanche') || /\bavax\b/.test(fullText)
 
-          if (isRelevant && title && link !== '#') {
+          if (isGoogle || isTagFeed) {
+            // Only accept if strictly reliable or from Google (checked by query)
+            // Tag feeds: we trust them more but still verify keywords slightly to avoid pollution (like the XRP example)
+            if (isRelevant && title && link !== '#') {
+              // Clean title for Google News
+              let cleanTitle = title
+              if (isGoogle) {
+                const sourceName = feed.source === 'Google News' ? item.match(/<source[^>]*>(.*?)<\/source>/)?.[1] : feed.source
+                if (sourceName) {
+                  // Remove " - SourceName" from end of title
+                  const suffix = ` - ${sourceName}`
+                  if (cleanTitle.endsWith(suffix)) {
+                    cleanTitle = cleanTitle.slice(0, -suffix.length)
+                  }
+                }
+              }
+
+              newsItems.push({
+                title: cleanTitle,
+                source: isGoogle ? item.match(/<source[^>]*>(.*?)<\/source>/)?.[1] || 'Google News' : feed.source,
+                url: link,
+                timestamp,
+                isGoogleLink: isGoogle
+              })
+            }
+          } else if (isRelevant && title && link !== '#') {
+            // Fallback for generic feeds
             newsItems.push({
               title: title.substring(0, 120),
               source: feed.source,
               url: link,
-              timestamp
+              timestamp,
+              isGoogleLink: false
             })
           }
         }
@@ -86,13 +113,49 @@ export async function GET() {
     }
 
     // Sort by date and take top 6
-    const sortedNews = newsItems
+    let sortedNews = newsItems
       .sort((a, b) => b.timestamp - a.timestamp)
       .slice(0, 6)
 
-    if (sortedNews.length > 0) {
+    // Unwrap Google News links
+    // We do this in parallel for the top items only to save time
+    await Promise.allSettled(sortedNews.map(async (item) => {
+      if (item.isGoogleLink) {
+        try {
+          // Google News redirect wrapper
+          // Simple HEAD request might not work due to cookie/js requirements sometimes, but usually GET follows redirects
+          // Set a short timeout
+          const controller = new AbortController()
+          const id = setTimeout(() => controller.abort(), 2000)
+          const res = await fetch(item.url, {
+            method: 'GET', // HEAD sometimes rejected by Google
+            redirect: 'follow',
+            signal: controller.signal,
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+          })
+          clearTimeout(id)
+          if (res.ok) {
+            // If we get a valid final URL that isn't google.com (unless it's google blog), use it
+            const finalUrl = res.url
+            if (!finalUrl.includes('google.com/rss') && !finalUrl.includes('news.google.com')) {
+              item.url = finalUrl
+            }
+          }
+        } catch (e) {
+          // Ignore error, keep original link
+          console.log('Failed to unwrap auth link', e)
+        }
+      }
+    }))
+
+    // Remove internal flag before sending
+    const finalNews = sortedNews.map(({ isGoogleLink, ...rest }) => rest)
+
+    if (finalNews.length > 0) {
       return Response.json({
-        news: sortedNews,
+        news: finalNews,
         timestamp: new Date().toISOString()
       })
     }
