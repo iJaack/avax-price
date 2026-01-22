@@ -29,7 +29,7 @@ export async function GET() {
         const text = await response.text()
         const items = text.match(/<item[^>]*>[\s\S]*?<\/item>/gi) || []
 
-        for (const item of items.slice(0, 5)) {
+        for (const item of items.slice(0, 20)) {
           // Extract title - handle CDATA and plain text
           const titleMatch = item.match(/<title><!\[CDATA\[([\s\S]*?)\]\]><\/title>/i) ||
             item.match(/<title>([^<]+)<\/title>/i)

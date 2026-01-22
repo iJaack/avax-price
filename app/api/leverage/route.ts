@@ -18,11 +18,11 @@ async function fetchBinanceData(): Promise<ExchangeData> {
 
   try {
     const [fundingRes, oiRes, lsRes, takerRes, priceRes] = await Promise.all([
-      fetch(`https://fapi.binance.com/fapi/v1/fundingRate?symbol=${symbol}&limit=1`, { cache: 'no-store' }),
-      fetch(`https://fapi.binance.com/fapi/v1/openInterest?symbol=${symbol}`, { cache: 'no-store' }),
-      fetch(`https://fapi.binance.com/futures/data/topLongShortPositionRatio?symbol=${symbol}&period=1h&limit=1`, { cache: 'no-store' }),
-      fetch(`https://fapi.binance.com/futures/data/takerlongshortRatio?symbol=${symbol}&period=1h&limit=1`, { cache: 'no-store' }),
-      fetch(`https://fapi.binance.com/fapi/v1/ticker/price?symbol=${symbol}`, { cache: 'no-store' })
+      fetch(`https://fapi.binance.com/fapi/v1/fundingRate?symbol=${symbol}&limit=1`, { cache: 'no-store', headers: { 'User-Agent': 'Mozilla/5.0' } }),
+      fetch(`https://fapi.binance.com/fapi/v1/openInterest?symbol=${symbol}`, { cache: 'no-store', headers: { 'User-Agent': 'Mozilla/5.0' } }),
+      fetch(`https://fapi.binance.com/futures/data/topLongShortPositionRatio?symbol=${symbol}&period=1h&limit=1`, { cache: 'no-store', headers: { 'User-Agent': 'Mozilla/5.0' } }),
+      fetch(`https://fapi.binance.com/futures/data/takerlongshortRatio?symbol=${symbol}&period=1h&limit=1`, { cache: 'no-store', headers: { 'User-Agent': 'Mozilla/5.0' } }),
+      fetch(`https://fapi.binance.com/fapi/v1/ticker/price?symbol=${symbol}`, { cache: 'no-store', headers: { 'User-Agent': 'Mozilla/5.0' } })
     ])
 
     let fundingRate = 0.0001
@@ -78,8 +78,8 @@ async function fetchBybitData(): Promise<ExchangeData> {
 
   try {
     const [tickerRes, oiRes] = await Promise.all([
-      fetch(`https://api.bybit.com/v5/market/tickers?category=linear&symbol=${symbol}`, { cache: 'no-store' }),
-      fetch(`https://api.bybit.com/v5/market/open-interest?category=linear&symbol=${symbol}&intervalTime=1h&limit=2`, { cache: 'no-store' })
+      fetch(`https://api.bybit.com/v5/market/tickers?category=linear&symbol=${symbol}`, { cache: 'no-store', headers: { 'User-Agent': 'Mozilla/5.0' } }),
+      fetch(`https://api.bybit.com/v5/market/open-interest?category=linear&symbol=${symbol}&intervalTime=1h&limit=2`, { cache: 'no-store', headers: { 'User-Agent': 'Mozilla/5.0' } })
     ])
 
     let fundingRate = 0.0001

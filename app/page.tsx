@@ -309,7 +309,7 @@ export default function Home() {
   // Fetch leverage data
   const fetchLeverage = async () => {
     try {
-      const res = await fetch('/api/leverage')
+      const res = await fetch(`/api/leverage?t=${Date.now()}`)
       const data = await res.json()
       if (data.exchanges?.length > 0) {
         setExchanges(data.exchanges)
