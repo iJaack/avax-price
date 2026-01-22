@@ -18,13 +18,16 @@ interface ExchangeData {
 async function fetchBinanceData(): Promise<ExchangeData> {
   const symbol = 'AVAXUSDT'
 
+  // Use allorigins proxy to bypass geo-restrictions (Error 451)
+  const proxyUrl = (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
+
   try {
     const [fundingRes, oiRes, lsRes, takerRes, priceRes] = await Promise.all([
-      fetch(`https://fapi.binance.com/fapi/v1/fundingRate?symbol=${symbol}&limit=1`, { cache: 'no-store', headers: { 'User-Agent': 'Mozilla/5.0' } }),
-      fetch(`https://fapi.binance.com/fapi/v1/openInterest?symbol=${symbol}`, { cache: 'no-store', headers: { 'User-Agent': 'Mozilla/5.0' } }),
-      fetch(`https://fapi.binance.com/futures/data/topLongShortPositionRatio?symbol=${symbol}&period=1h&limit=1`, { cache: 'no-store', headers: { 'User-Agent': 'Mozilla/5.0' } }),
-      fetch(`https://fapi.binance.com/futures/data/takerlongshortRatio?symbol=${symbol}&period=1h&limit=1`, { cache: 'no-store', headers: { 'User-Agent': 'Mozilla/5.0' } }),
-      fetch(`https://fapi.binance.com/fapi/v1/ticker/price?symbol=${symbol}`, { cache: 'no-store', headers: { 'User-Agent': 'Mozilla/5.0' } })
+      fetch(proxyUrl(`https://fapi.binance.com/fapi/v1/fundingRate?symbol=${symbol}&limit=1`), { cache: 'no-store' }),
+      fetch(proxyUrl(`https://fapi.binance.com/fapi/v1/openInterest?symbol=${symbol}`), { cache: 'no-store' }),
+      fetch(proxyUrl(`https://fapi.binance.com/futures/data/topLongShortPositionRatio?symbol=${symbol}&period=1h&limit=1`), { cache: 'no-store' }),
+      fetch(proxyUrl(`https://fapi.binance.com/futures/data/takerlongshortRatio?symbol=${symbol}&period=1h&limit=1`), { cache: 'no-store' }),
+      fetch(proxyUrl(`https://fapi.binance.com/fapi/v1/ticker/price?symbol=${symbol}`), { cache: 'no-store' })
     ])
 
     if (!fundingRes.ok) throw new Error(`Funding API: ${fundingRes.status} ${fundingRes.statusText}`)
@@ -82,10 +85,13 @@ async function fetchBinanceData(): Promise<ExchangeData> {
 async function fetchBybitData(): Promise<ExchangeData> {
   const symbol = 'AVAXUSDT'
 
+  // Use allorigins proxy to bypass geo-restrictions
+  const proxyUrl = (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
+
   try {
     const [tickerRes, oiRes] = await Promise.all([
-      fetch(`https://api.bybit.com/v5/market/tickers?category=linear&symbol=${symbol}`, { cache: 'no-store', headers: { 'User-Agent': 'Mozilla/5.0' } }),
-      fetch(`https://api.bybit.com/v5/market/open-interest?category=linear&symbol=${symbol}&intervalTime=1h&limit=2`, { cache: 'no-store', headers: { 'User-Agent': 'Mozilla/5.0' } })
+      fetch(proxyUrl(`https://api.bybit.com/v5/market/tickers?category=linear&symbol=${symbol}`), { cache: 'no-store' }),
+      fetch(proxyUrl(`https://api.bybit.com/v5/market/open-interest?category=linear&symbol=${symbol}&intervalTime=1h&limit=2`), { cache: 'no-store' })
     ])
 
     if (!tickerRes.ok) throw new Error(`Bybit Ticker: ${tickerRes.status}`)
