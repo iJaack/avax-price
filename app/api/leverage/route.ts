@@ -15,6 +15,19 @@ interface ExchangeData {
   _error?: string
 }
 
+async function fetchWithTimeout(url: string, options: RequestInit = {}, timeout = 3000): Promise<Response> {
+  const controller = new AbortController()
+  const id = setTimeout(() => controller.abort(), timeout)
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal })
+    clearTimeout(id)
+    return res
+  } catch (error) {
+    clearTimeout(id)
+    throw error
+  }
+}
+
 async function fetchBinanceData(): Promise<ExchangeData> {
   const symbol = 'AVAXUSDT'
 
@@ -23,11 +36,11 @@ async function fetchBinanceData(): Promise<ExchangeData> {
 
   try {
     const [fundingRes, oiRes, lsRes, takerRes, priceRes] = await Promise.all([
-      fetch(proxyUrl(`https://fapi.binance.com/fapi/v1/fundingRate?symbol=${symbol}&limit=1`), { cache: 'no-store' }),
-      fetch(proxyUrl(`https://fapi.binance.com/fapi/v1/openInterest?symbol=${symbol}`), { cache: 'no-store' }),
-      fetch(proxyUrl(`https://fapi.binance.com/futures/data/topLongShortPositionRatio?symbol=${symbol}&period=1h&limit=1`), { cache: 'no-store' }),
-      fetch(proxyUrl(`https://fapi.binance.com/futures/data/takerlongshortRatio?symbol=${symbol}&period=1h&limit=1`), { cache: 'no-store' }),
-      fetch(proxyUrl(`https://fapi.binance.com/fapi/v1/ticker/price?symbol=${symbol}`), { cache: 'no-store' })
+      fetchWithTimeout(proxyUrl(`https://fapi.binance.com/fapi/v1/fundingRate?symbol=${symbol}&limit=1`), { cache: 'no-store' }),
+      fetchWithTimeout(proxyUrl(`https://fapi.binance.com/fapi/v1/openInterest?symbol=${symbol}`), { cache: 'no-store' }),
+      fetchWithTimeout(proxyUrl(`https://fapi.binance.com/futures/data/topLongShortPositionRatio?symbol=${symbol}&period=1h&limit=1`), { cache: 'no-store' }),
+      fetchWithTimeout(proxyUrl(`https://fapi.binance.com/futures/data/takerlongshortRatio?symbol=${symbol}&period=1h&limit=1`), { cache: 'no-store' }),
+      fetchWithTimeout(proxyUrl(`https://fapi.binance.com/fapi/v1/ticker/price?symbol=${symbol}`), { cache: 'no-store' })
     ])
 
     if (!fundingRes.ok) throw new Error(`Funding API: ${fundingRes.status} ${fundingRes.statusText}`)
@@ -90,8 +103,8 @@ async function fetchBybitData(): Promise<ExchangeData> {
 
   try {
     const [tickerRes, oiRes] = await Promise.all([
-      fetch(proxyUrl(`https://api.bybit.com/v5/market/tickers?category=linear&symbol=${symbol}`), { cache: 'no-store' }),
-      fetch(proxyUrl(`https://api.bybit.com/v5/market/open-interest?category=linear&symbol=${symbol}&intervalTime=1h&limit=2`), { cache: 'no-store' })
+      fetchWithTimeout(proxyUrl(`https://api.bybit.com/v5/market/tickers?category=linear&symbol=${symbol}`), { cache: 'no-store' }),
+      fetchWithTimeout(proxyUrl(`https://api.bybit.com/v5/market/open-interest?category=linear&symbol=${symbol}&intervalTime=1h&limit=2`), { cache: 'no-store' })
     ])
 
     if (!tickerRes.ok) throw new Error(`Bybit Ticker: ${tickerRes.status}`)
@@ -163,7 +176,7 @@ function getDefaultData(exchange: string, error?: string): ExchangeData {
 
 async function fetchHyperliquidData(): Promise<ExchangeData> {
   try {
-    const response = await fetch('https://api.hyperliquid.xyz/info', {
+    const response = await fetchWithTimeout('https://api.hyperliquid.xyz/info', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ "type": "metaAndAssetCtxs" }),

@@ -200,6 +200,30 @@ export default function Home() {
       positionSentiment: 'heavy longs',
       takerRatio: '1.12',
       takerSentiment: 'buyers lead'
+    },
+    {
+      exchange: 'Bybit',
+      fundingRate: '0.0012',
+      fundingSentiment: 'neutral',
+      openInterestUsd: 180000000,
+      oiChange24h: 1.2,
+      oiSentiment: 'stable',
+      longShortRatio: '1.00',
+      positionSentiment: 'balanced',
+      takerRatio: '1.00',
+      takerSentiment: 'balanced'
+    },
+    {
+      exchange: 'Hyperliquid',
+      fundingRate: '0.0010',
+      fundingSentiment: 'neutral',
+      openInterestUsd: 120000000,
+      oiChange24h: 3.5,
+      oiSentiment: 'increasing',
+      longShortRatio: 'N/A',
+      positionSentiment: 'unknown',
+      takerRatio: 'N/A',
+      takerSentiment: 'unknown'
     }
   ])
   const [selectedExchange, setSelectedExchange] = useState(0)
