@@ -739,6 +739,19 @@ export default function Home() {
               </span>
             </div>
 
+            {/* Error Message Display */}
+            {/* @ts-ignore */}
+            {exchanges[selectedExchange]?._isFallback && (
+              <div className="mb-3 px-3 py-2 bg-red-900/20 border border-red-900/50 rounded-lg">
+                <p className="text-[10px] text-red-400 font-mono">
+                  API Error: {exchanges[selectedExchange]?._error || 'Unknown error'}
+                </p>
+                <p className="text-[9px] text-red-500/70 mt-0.5">
+                  Showing default demonstration data.
+                </p>
+              </div>
+            )}
+
             {exchanges[selectedExchange] && (
               <div className="grid grid-cols-4 gap-3">
                 <div className="bg-neutral-800/50 rounded-lg p-3 text-center">
