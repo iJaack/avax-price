@@ -11,7 +11,7 @@ export async function GET() {
       { url: 'https://cdn.feedcontrol.net/8/11466-wpmbsite005~a627d_265/feed.xml', source: 'Avalanche Blog' } // Unofficial/Proxy for official blog if available, otherwise skip
     ]
 
-    const newsItems: Array<{ title: string; source: string; url: string; timestamp: number }> = []
+    const newsItems: Array<{ title: string; source: string; url: string; timestamp: number; isGoogleLink?: boolean }> = []
 
     for (const feed of rssFeeds) {
       try {
@@ -34,13 +34,12 @@ export async function GET() {
             item.match(/<title>([^<]+)<\/title>/i)
           const title = titleMatch ? titleMatch[1].trim() : ''
 
-          // Extract link - try multiple patterns
-          // Pattern 1: <link>URL</link>
-          // Pattern 2: <link><![CDATA[URL]]></link>
-          // Pattern 3: <link /> followed by URL (some RSS feeds)
-          // Pattern 4: <guid>URL</guid> as fallback
+          // Extract link
           let link = '#'
+          constlinkMatch = item.match(/<link>(.*?)<\/link>/i)
+          if (linkMatch) link = linkMatch[1]
 
+          // Re-implement the link extraction logic properly if strict simplified version missed edge cases
           const linkCdataMatch = item.match(/<link><!\[CDATA\[([\s\S]*?)\]\]><\/link>/i)
           const linkPlainMatch = item.match(/<link>([^<]+)<\/link>/i)
           const linkSelfClose = item.match(/<link\s*\/?>\s*(https?:\/\/[^\s<]+)/i)
@@ -62,6 +61,7 @@ export async function GET() {
 
           // Specific filtering for Google News which is accurate with query
           const isGoogle = feed.source === 'Google News'
+          const isTagFeed = !isGoogle // All other feeds in our list are specific tag feeds
 
           // Strict filtering: Content MUST contain specific keywords
           // This is essential for generic feeds like CoinLedger/Messari that don't allow RSS filtering
