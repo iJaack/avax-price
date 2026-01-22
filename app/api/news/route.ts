@@ -35,8 +35,9 @@ export async function GET() {
           const title = titleMatch ? titleMatch[1].trim() : ''
 
           // Extract link
+          // Extract link
           let link = '#'
-          constlinkMatch = item.match(/<link>(.*?)<\/link>/i)
+          const linkMatch = item.match(/<link>(.*?)<\/link>/i)
           if (linkMatch) link = linkMatch[1]
 
           // Re-implement the link extraction logic properly if strict simplified version missed edge cases
