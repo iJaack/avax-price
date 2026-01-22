@@ -190,30 +190,6 @@ export default function Home() {
   const [newsTimestamp, setNewsTimestamp] = useState<number>(Date.now())
   const [exchanges, setExchanges] = useState<ExchangeData[]>([
     {
-      exchange: 'Binance',
-      fundingRate: '0.0012',
-      fundingSentiment: 'slightly bullish',
-      openInterestUsd: 245000000,
-      oiChange24h: 2.5,
-      oiSentiment: 'stable',
-      longShortRatio: '1.85',
-      positionSentiment: 'heavy longs',
-      takerRatio: '1.12',
-      takerSentiment: 'buyers lead'
-    },
-    {
-      exchange: 'Bybit',
-      fundingRate: '0.0012',
-      fundingSentiment: 'neutral',
-      openInterestUsd: 180000000,
-      oiChange24h: 1.2,
-      oiSentiment: 'stable',
-      longShortRatio: '1.00',
-      positionSentiment: 'balanced',
-      takerRatio: '1.00',
-      takerSentiment: 'balanced'
-    },
-    {
       exchange: 'Hyperliquid',
       fundingRate: '0.0010',
       fundingSentiment: 'neutral',
@@ -339,20 +315,6 @@ export default function Home() {
       const data = await res.json()
       if (data.exchanges?.length > 0) {
         setExchanges(data.exchanges)
-
-        // Auto-select the first working exchange if current one is fallback
-        // Or if we are just initializing (selectedExchange is 0)
-        const firstWorkingIndex = data.exchanges.findIndex((ex: any) => !ex._isFallback)
-        if (firstWorkingIndex !== -1 && (data.exchanges[selectedExchange]?._isFallback || selectedExchange === 0)) {
-          // Only switch if the current selection is broken or we are default
-          // Correction: Always switch to working one if current is broken is good UX.
-          // However, if user manually selected broken one, maybe we shouldn't? 
-          // But here we are fetching fresh. 
-          // Let's safe switch: if currently selected is broken, switch to first working.
-          if (data.exchanges[selectedExchange]?._isFallback) {
-            setSelectedExchange(firstWorkingIndex)
-          }
-        }
       }
     } catch {
       // Keep default values

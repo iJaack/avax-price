@@ -4,12 +4,11 @@ export async function GET() {
   try {
     // Try to fetch real AVAX news from RSS feeds
     const rssFeeds = [
-      { url: 'https://cointelegraph.com/rss/tag/avalanche', source: 'CoinTelegraph' },
-      { url: 'https://cryptoslate.com/news/avalanche/?feed=rss', source: 'CryptoSlate' },
-      { url: 'https://www.coindesk.com/arc/outboundfeeds/rss/?keyword=avalanche', source: 'CoinDesk' },
-      { url: 'https://www.theblock.co/rss/tag/avalanche', source: 'The Block' },
-      { url: 'https://coinledger.io/feed', source: 'CoinLedger' },
-      { url: 'https://messari.io/rss', source: 'Messari' }
+      { url: 'https://news.google.com/rss/search?q=avalanche+crypto+when:7d&hl=en-US&gl=US&ceid=US:en', source: 'Google News' },
+      { url: 'https://cryptoslate.com/news/avalanche/feed/', source: 'CryptoSlate' },
+      { url: 'https://dailyhodl.com/tag/avalanche/feed/', source: 'The Daily Hodl' },
+      { url: 'https://coinjournal.net/tag/avalanche/feed/', source: 'CoinJournal' },
+      { url: 'https://cdn.feedcontrol.net/8/11466-wpmbsite005~a627d_265/feed.xml', source: 'Avalanche Blog' } // Unofficial/Proxy for official blog if available, otherwise skip
     ]
 
     const newsItems: Array<{ title: string; source: string; url: string; timestamp: number }> = []
@@ -61,10 +60,16 @@ export async function GET() {
           const dateMatch = item.match(/<pubDate>([^<]+)<\/pubDate>/i)
           const timestamp = dateMatch ? new Date(dateMatch[1]).getTime() : Date.now()
 
+          // Specific filtering for Google News which is accurate with query
+          const isGoogle = feed.source === 'Google News'
+
           // Strict filtering: Content MUST contain specific keywords
           // This is essential for generic feeds like CoinLedger/Messari that don't allow RSS filtering
           const fullText = (title + (item.match(/<description>([\s\S]*?)<\/description>/)?.[1] || '')).toLowerCase()
-          const isRelevant = fullText.includes('avalanche') || fullText.includes('avax')
+
+          // Check for "Avalanche" or "AVAX" (mostly whole word for AVAX to avoid false positives)
+          // Google News is already filtered by query, so we trust it more
+          const isRelevant = isGoogle || fullText.includes('avalanche') || /\bavax\b/.test(fullText)
 
           if (isRelevant && title && link !== '#') {
             newsItems.push({
