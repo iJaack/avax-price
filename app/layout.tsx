@@ -3,18 +3,18 @@ import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'AVAX Price | Real-Time Avalanche Price & Predictions',
-  description: 'Track Avalanche (AVAX) price in real-time with market data, charts, and crypto prediction markets from Kalshi.',
-  keywords: ['AVAX', 'Avalanche', 'crypto', 'price', 'predictions', 'Polymarket'],
+  title: 'AVAX Price | Real-Time Avalanche Price',
+  description: 'Track Avalanche (AVAX) price in real-time with market data and charts.',
+  keywords: ['AVAX', 'Avalanche', 'crypto', 'price', 'market data', 'charts'],
   openGraph: {
     title: 'AVAX Price',
-    description: 'Real-time Avalanche price tracker with crypto predictions',
+    description: 'Real-time Avalanche price tracker with market data and charts',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
     title: 'AVAX Price',
-    description: 'Real-time Avalanche price tracker with crypto predictions',
+    description: 'Real-time Avalanche price tracker with market data and charts',
   },
 }
 

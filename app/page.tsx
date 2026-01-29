@@ -126,21 +126,6 @@ function useAnimatedValue(targetValue: number, duration: number = 500) {
   return value
 }
 
-// Calculate time until 5pm EST
-function getTimeRemaining(): string {
-  const now = new Date()
-  const target = new Date()
-  target.setUTCHours(22, 0, 0, 0) // 5pm EST = 22:00 UTC
-  if (now > target) target.setDate(target.getDate() + 1)
-
-  const diff = target.getTime() - now.getTime()
-  const hours = Math.floor(diff / (1000 * 60 * 60))
-  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
-  const seconds = Math.floor((diff % (1000 * 60)) / 1000)
-
-  return `${hours}h ${minutes}m ${seconds}s`
-}
-
 // Helper to generate candle data from history
 function generateCandles(history: Array<{ price: number; timestamp: number }>) {
   if (!history || history.length < 2) return []
@@ -180,11 +165,9 @@ export default function Home() {
   const [lastUpdate, setLastUpdate] = useState<number>(Date.now())
 
   const [change24h, setChange24h] = useState<number>(0)
-  const [marketCap, setMarketCap] = useState<number>(0)
   const [history, setHistory] = useState<Array<{ price: number; timestamp: number }>>([])
   const [selectedPeriod, setSelectedPeriod] = useState('1D')
   const [loading, setLoading] = useState(true)
-  const [timeLeft, setTimeLeft] = useState(getTimeRemaining())
   const [news, setNews] = useState<NewsItem[]>([])
   // No fallback tracking needed for strict mode
   const [newsTimestamp, setNewsTimestamp] = useState<number>(Date.now())
@@ -219,12 +202,6 @@ export default function Home() {
 
   // ... existing code ...
 
-  // Timer for countdown
-  useEffect(() => {
-    const timer = setInterval(() => setTimeLeft(getTimeRemaining()), 1000)
-    return () => clearInterval(timer)
-  }, [])
-
   // Watchdog: Log if data is stale (> 10 seconds), but don't force reload
   useEffect(() => {
     const watchdog = setInterval(() => {
@@ -243,10 +220,9 @@ export default function Home() {
     try {
       const res = await fetch(`/api/price?days=${days}&t=${Date.now()}`)
       const data = await res.json()
-      // Only update metadata (marketCap, history) from CoinGecko
+      // Only update history from CoinGecko
       // STRICT MODE: Price and 24h Change are handled exclusively by Binance (fetchLivePrice)
       // We NEVER allow CoinGecko to update the price, even if Binance fails.
-      if (data.marketCap) setMarketCap(data.marketCap)
       if (data.history?.length > 0) {
         setHistory(data.history.map((h: { price: number; timestamp: number }) => ({
           price: h.price,
@@ -402,17 +378,6 @@ export default function Home() {
     return { path, min, max, mid }
   }, [history])
 
-  // Dynamic predictions based on price
-  const predictions = useMemo(() => {
-    if (!price) return []
-    const base = Math.ceil(animatedPrice)
-    return [
-      { label: `${base + 2} or above`, yes: 25, no: 75 },
-      { label: `${base + 1} or above`, yes: 38, no: 62 },
-      { label: `${base} or above`, yes: 52, no: 48 },
-    ]
-  }, [animatedPrice, price])
-
   const isPositive = animatedChange >= 0
 
   if (loading) {
@@ -451,15 +416,6 @@ export default function Home() {
               </span>
             )}
           </div>
-        </div>
-
-        {/* MARKET PREDICTION - Dynamic */}
-        <div className="text-center text-neutral-500 text-sm mb-10 h-6">
-          {price && (
-            <>
-              market predicts: <span className="text-neutral-300">at least ${Math.ceil(animatedPrice * 3)}</span> in 2027 · {Math.round(45 + (animatedChange > 0 ? 5 : -5))}% chance · ${(marketCap / 1e9).toFixed(1)}B backing
-            </>
-          )}
         </div>
 
         {/* CHART CONTROLS */}
@@ -643,58 +599,6 @@ export default function Home() {
             <span>${chartData.max.toFixed(2)}</span>
             <span>${chartData.mid.toFixed(2)}</span>
             <span>${chartData.min.toFixed(2)}</span>
-          </div>
-        </div>
-
-        {/* PREDICTION MARKETS */}
-        <div className="mb-8">
-          <div className="flex justify-between items-center mb-3">
-            <h2 className="text-xs text-neutral-500 font-semibold tracking-wide">PREDICTION MARKETS</h2>
-            <span className="text-[10px] text-neutral-600">via Kalshi</span>
-          </div>
-
-          <div className="bg-neutral-900/60 border border-neutral-800 rounded-xl p-5">
-            <div className="flex justify-between items-center mb-4">
-              <span className="text-xs font-bold bg-neutral-800 px-2 py-1 rounded">DAILY</span>
-              <span className="text-xs text-neutral-500">{timeLeft}</span>
-            </div>
-
-            <h3 className="text-center text-sm text-neutral-300 mb-5">AVAX today at 5pm EST</h3>
-
-            <div className="space-y-4">
-              {predictions.map((pred, i) => (
-                <div key={i} className="flex items-center justify-between">
-                  <span className="text-sm text-neutral-400">{pred.label}</span>
-                  <div className="flex gap-4">
-                    <div className="text-center w-14">
-                      <div className={`text-sm font-semibold transition-colors duration-300 ${pred.yes >= 50 ? 'text-green-500' : 'text-green-600/70'}`}>
-                        {pred.yes}%
-                      </div>
-                      <div className="text-[10px] text-neutral-600">yes</div>
-                    </div>
-                    <div className="text-center w-14">
-                      <div className={`text-sm font-semibold transition-colors duration-300 ${pred.no >= 50 ? 'text-red-500' : 'text-red-600/70'}`}>
-                        {pred.no}%
-                      </div>
-                      <div className="text-[10px] text-neutral-600">no</div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <a
-              href="https://kalshi.com/markets/crypto"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block w-full mt-5 py-2.5 text-xs text-neutral-500 border border-neutral-800 rounded-lg hover:border-neutral-700 transition-colors text-center"
-            >
-              view more markets
-            </a>
-
-            <p className="text-center text-[10px] text-neutral-600 mt-3">
-              $1.2K at stake · $890 traded
-            </p>
           </div>
         </div>
 
