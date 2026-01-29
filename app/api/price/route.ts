@@ -4,11 +4,10 @@ export const revalidate = 0
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const days = searchParams.get('days') || '30'
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 8000)
 
   try {
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 8000)
-
     // Fast live update for price only
     const type = searchParams.get('type')
     if (type === 'live') {
@@ -131,5 +130,7 @@ export async function GET(request: Request) {
       timestamp: new Date().toISOString(),
       isFallback: true
     })
+  } finally {
+    clearTimeout(timeout)
   }
 }

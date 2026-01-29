@@ -14,9 +14,12 @@ export async function GET() {
     const newsItems: Array<{ title: string; source: string; url: string; timestamp: number; isGoogleLink?: boolean }> = []
 
     for (const feed of rssFeeds) {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 6000)
       try {
         const response = await fetch(feed.url, {
           cache: 'no-store',
+          signal: controller.signal,
           headers: {
             'Accept': 'application/rss+xml, application/xml, text/xml',
             'User-Agent': 'Mozilla/5.0 (compatible; AVAXPriceBot/1.0)'
@@ -110,6 +113,8 @@ export async function GET() {
         }
       } catch (e) {
         console.error(`Error fetching ${feed.url}:`, e)
+      } finally {
+        clearTimeout(timeout)
       }
     }
 
